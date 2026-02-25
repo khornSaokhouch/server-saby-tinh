@@ -1,0 +1,181 @@
+<?php
+use App\Http\Controllers\{AuthController, UserController, CategoryController, TypeController,
+     BrandController, StoreController, OrderStatusController, ShippingMethodController, 
+     ColorController, SizeController, PaymentAccountController, EventController, PromotionController, 
+     SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController};
+use Illuminate\Support\Facades\Route;
+
+// Public
+Route::get('/countries', [CountryController::class, 'index']);
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
+
+Route::post('/otp/send', [OtpController::class, 'sendOtp']);
+Route::post('/otp/verify', [OtpController::class, 'verifyOtp']);
+Route::post('/otp/resend', [OtpController::class, 'resendOtp']);
+
+
+// Social Login (Google/Facebook)
+Route::get('/auth/{provider}/redirect', [GoogleAuthController::class, 'redirectToProvider']);
+Route::get('/auth/{provider}/callback', [GoogleAuthController::class, 'handleProviderCallback']);
+
+
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::get('/categories/{id}/products', function ($id) {
+    $products = \App\Models\Product::with(['store', 'category', 'brand', 'type', 'images'])
+        ->where('category_id', $id)
+        ->latest()
+        ->get();
+    return response()->json(['success' => true, 'data' => $products]);
+});
+Route::get('/types', [TypeController::class, 'index']);
+Route::get('/brands', [BrandController::class, 'index']);
+Route::get('/stores', [StoreController::class, 'index']);
+Route::get('/events', [EventController::class, 'index']);
+Route::get('/products', [ProductController::class, 'index']);
+Route::get('/colors', [ColorController::class, 'index']);
+Route::get('/sizes', [SizeController::class, 'index']);
+Route::get('/products/{idOrSlug}', [ProductController::class, 'show']);
+Route::get('/events/{idOrName}', [EventController::class, 'show']);
+Route::get('/stores/{idOrName}', [StoreController::class, 'show']);
+Route::get('/reviews', [UserReviewController::class, 'index']);
+
+
+// Authenticated
+Route::middleware('auth:api')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/profile', [AuthController::class, 'profile']);
+    Route::post('/users/{id}', [UserController::class, 'updateProfile']);
+
+    Route::get('/shipping-methods', [ShippingMethodController::class, 'index']);
+    Route::get('/order-statuses', [OrderStatusController::class, 'index']);
+    Route::get('/payment-accounts', [PaymentAccountController::class, 'index']);
+    
+    // Admin & Owner Routes (Corrected space)
+    Route::middleware('role:admin,owner')->group(function () {
+        // Categories
+        Route::post('/categories', [CategoryController::class, 'store']);
+        Route::post('/categories/{id}', [CategoryController::class, 'update']);
+        Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
+        // Shipping Methods
+
+        Route::get('/shipping-methods/{id}', [ShippingMethodController::class, 'show']);
+        Route::post('/shipping-methods', [ShippingMethodController::class, 'store']);
+        Route::post('/shipping-methods/{id}', [ShippingMethodController::class, 'update']);
+        Route::delete('/shipping-methods/{id}', [ShippingMethodController::class, 'destroy']);
+
+        // Colors
+        Route::post('/colors', [ColorController::class, 'store']);
+        Route::post('/colors/{id}', [ColorController::class, 'update']);
+        Route::delete('/colors/{id}', [ColorController::class, 'destroy']);
+
+        // Sizes
+
+        Route::post('/sizes', [SizeController::class, 'store']);
+        Route::post('/sizes/{id}', [SizeController::class, 'update']);
+        Route::delete('/sizes/{id}', [SizeController::class, 'destroy']);
+
+
+        // Order Status
+
+        Route::get('/order-statuses/{id}', [OrderStatusController::class, 'show']);
+        Route::post('/order-statuses', [OrderStatusController::class, 'store']);
+        Route::post('/order-statuses/{id}', [OrderStatusController::class, 'update']);
+        Route::delete('/order-statuses/{id}', [OrderStatusController::class, 'destroy']);
+        
+        // Brands
+        Route::post('/brands', [BrandController::class, 'store']);
+        Route::post('/brands/{id}', [BrandController::class, 'update']);
+        Route::delete('/brands/{id}', [BrandController::class, 'destroy']);
+
+        // Types
+        Route::post('/types', [TypeController::class, 'store']);
+        Route::post('/types/{id}', [TypeController::class, 'update']);
+        Route::delete('/types/{id}', [TypeController::class, 'destroy']);
+
+         // Store management
+        Route::get('/stores/{id}', [StoreController::class, 'show']);
+        Route::post('/stores', [StoreController::class, 'store']);
+        Route::post('/stores/{id}', [StoreController::class, 'update']);
+        Route::delete('/stores/{id}', [StoreController::class, 'destroy']);
+
+        // Company Info management
+        Route::get('/companies', [CompanyInfoController::class, 'index']);
+        Route::get('/companies/{id}', [CompanyInfoController::class, 'show']);
+        Route::post('/companies', [CompanyInfoController::class, 'store']);
+        Route::post('/companies/{id}', [CompanyInfoController::class, 'update']);
+        Route::delete('/companies/{id}', [CompanyInfoController::class, 'destroy']);
+        // Products management
+
+        Route::post('/products', [ProductController::class, 'store']);
+        Route::match(['POST', 'PUT'], '/products/{id}', [ProductController::class, 'update']);
+        Route::delete('/products/{id}', [ProductController::class, 'destroy']);
+
+        // Stock management
+        Route::get('/stocks', [StockController::class, 'index']);
+
+        // Payment Accounts
+
+        Route::post('/payment-accounts', [PaymentAccountController::class, 'store']);
+        Route::post('/payment-accounts/{id}', [PaymentAccountController::class, 'update']);
+        Route::delete('/payment-accounts/{id}', [PaymentAccountController::class, 'destroy']);
+    });
+
+    // Sellers
+    Route::post('/sellers', [SellerController::class, 'store']);
+
+    // Admin Only
+    Route::middleware('role:admin')->group(function () {
+        Route::get('/sellers', [SellerController::class, 'index']);
+        Route::get('/sellers/pending-count', [SellerController::class, 'pendingCount']);
+        Route::get('/sellers/{id}', [SellerController::class, 'show']);
+        Route::post('/sellers/{id}/approve', [SellerController::class, 'approve']);
+        Route::post('/sellers/{id}/reject', [SellerController::class, 'reject']);
+        Route::delete('/sellers/{id}', [SellerController::class, 'destroy']);
+
+        Route::get('/users', [UserController::class, 'index']);
+        Route::post('/users', [UserController::class, 'store']); // Create User
+        Route::get('/users/{id}', [UserController::class, 'show']);
+        Route::patch('/users/{id}/role', [UserController::class, 'updateRole']); // Update User Role
+        Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+        Route::get('/user-addresses/all', [UserAddressController::class, 'adminIndex']);
+
+        // Countries
+        Route::post('/countries', [CountryController::class, 'store']);
+        Route::post('/countries/{id}', [CountryController::class, 'update']);
+        Route::delete('/countries/{id}', [CountryController::class, 'destroy']);
+
+        Route::post('/events', [EventController::class, 'store']);
+        Route::post('/events/{id}', [EventController::class, 'update']);
+        Route::delete('/events/{id}', [EventController::class, 'destroy']);
+
+        Route::get('/promotions', [PromotionController::class, 'index']);       // Get all promotions
+        Route::post('/promotions', [PromotionController::class, 'store']);      // Create promotion
+        Route::post('/promotions/{id}', [PromotionController::class, 'update']); // Update promotion
+        Route::delete('/promotions/{id}', [PromotionController::class, 'destroy']); // Delete promotion
+    });
+
+    // Shopping Cart
+    Route::get('/cart', [ShoppingCartController::class, 'index']);
+    Route::post('/cart/add', [ShoppingCartController::class, 'addItem']);
+    Route::patch('/cart/items/{id}', [ShoppingCartController::class, 'updateItem']);
+    Route::delete('/cart/items/{id}', [ShoppingCartController::class, 'removeItem']);
+    Route::delete('/cart', [ShoppingCartController::class, 'clearCart']);
+
+    // Orders
+    Route::get('/orders', [ShopOrderController::class, 'index']);
+    Route::post('/orders', [ShopOrderController::class, 'store']);
+    Route::get('/orders/{id}', [ShopOrderController::class, 'show']);
+
+    // Reviews
+    Route::post('/reviews', [UserReviewController::class, 'store']);
+
+    // User Addresses (authenticated users)
+    Route::get('/user-addresses', [UserAddressController::class, 'index']);
+    Route::post('/user-addresses', [UserAddressController::class, 'store']);
+    Route::patch('/user-addresses/{id}', [UserAddressController::class, 'update']);
+    Route::delete('/user-addresses/{id}', [UserAddressController::class, 'destroy']);
+});
