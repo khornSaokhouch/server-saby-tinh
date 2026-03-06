@@ -3,6 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\User;
+use App\Models\UserOtp;
+use App\Mail\OtpMail;
+use Illuminate\Support\Facades\Mail;
 
 class OtpController extends Controller
 {
@@ -13,7 +17,9 @@ class OtpController extends Controller
         'username' => 'required'
     ]);
 
-    $user = User::where('username', $request->username)->firstOrFail();
+    $user = User::where('email', $request->username)
+                ->orWhere('phone_number', $request->username)
+                ->firstOrFail();
 
     // Invalidate old OTPs
     UserOtp::where('user_id', $user->id)
@@ -38,11 +44,15 @@ class OtpController extends Controller
 public function verifyOtp(Request $request)
 {
     $request->validate([
-        'user_id' => 'required',
+        'username' => 'required',
         'otp' => 'required'
     ]);
 
-    $otp = UserOtp::where('user_id', $request->user_id)
+    $user = User::where('email', $request->username)
+                ->orWhere('phone_number', $request->username)
+                ->firstOrFail();
+
+    $otp = UserOtp::where('user_id', $user->id)
         ->where('otp', $request->otp)
         ->where('is_used', false)
         ->where('expires_at', '>', now())
@@ -64,10 +74,12 @@ public function verifyOtp(Request $request)
 public function resendOtp(Request $request)
 {
     $request->validate([
-        'user_id' => 'required'
+        'username' => 'required'
     ]);
 
-    $user = User::findOrFail($request->user_id);
+    $user = User::where('email', $request->username)
+                ->orWhere('phone_number', $request->username)
+                ->firstOrFail();
 
     $lastOtp = UserOtp::where('user_id', $user->id)
         ->latest()
