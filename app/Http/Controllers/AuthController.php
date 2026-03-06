@@ -63,7 +63,7 @@ class AuthController extends Controller
     public function profile(): \Illuminate\Http\JsonResponse
     {
         return $this->handleJWT(function ($user) {
-            return $this->successResponse($user->load('profile')->loadCount('shopOrders'));
+            return $this->successResponse($user->load(['profile', 'store'])->loadCount('shopOrders'));
         });
     }
 

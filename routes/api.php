@@ -2,7 +2,7 @@
 use App\Http\Controllers\{AuthController, UserController, CategoryController, TypeController,
      BrandController, StoreController, OrderStatusController, ShippingMethodController, 
      ColorController, SizeController, PaymentAccountController, EventController, PromotionController, 
-     SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController};
+     SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, UserPaymentController};
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -50,6 +50,7 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('/shipping-methods', [ShippingMethodController::class, 'index']);
     Route::get('/order-statuses', [OrderStatusController::class, 'index']);
+    Route::get('/payment-statuses', [PaymentStatusController::class, 'index']);
     Route::get('/payment-accounts', [PaymentAccountController::class, 'index']);
     
     // Admin & Owner Routes (Corrected space)
@@ -121,6 +122,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/payment-accounts', [PaymentAccountController::class, 'store']);
         Route::post('/payment-accounts/{id}', [PaymentAccountController::class, 'update']);
         Route::delete('/payment-accounts/{id}', [PaymentAccountController::class, 'destroy']);
+
+        // Payment Status
+        Route::get('/payment-statuses/{id}', [PaymentStatusController::class, 'show']);
+        Route::post('/payment-statuses', [PaymentStatusController::class, 'store']);
+        Route::post('/payment-statuses/{id}', [PaymentStatusController::class, 'update']);
+        Route::delete('/payment-statuses/{id}', [PaymentStatusController::class, 'destroy']);
     });
 
     // Sellers
@@ -169,6 +176,17 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/orders', [ShopOrderController::class, 'index']);
     Route::post('/orders', [ShopOrderController::class, 'store']);
     Route::get('/orders/{id}', [ShopOrderController::class, 'show']);
+
+    // User Payments
+    Route::get('/user-payments', [UserPaymentController::class, 'index']);
+    Route::post('/user-payments', [UserPaymentController::class, 'store']);
+    Route::get('/user-payments/{id}', [UserPaymentController::class, 'show']);
+    Route::match(['POST', 'PUT'], '/user-payments/{id}', [UserPaymentController::class, 'update'])->middleware('role:admin');
+    Route::delete('/user-payments/{id}', [UserPaymentController::class, 'destroy'])->middleware('role:admin');
+
+    // Bakong Payments
+    Route::post('/bakong/generate-qr', [\App\Http\Controllers\BakongController::class, 'generateQr']);
+    Route::post('/bakong/check-status', [\App\Http\Controllers\BakongController::class, 'checkMd5']);
 
     // Reviews
     Route::post('/reviews', [UserReviewController::class, 'store']);

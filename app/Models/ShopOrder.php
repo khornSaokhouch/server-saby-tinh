@@ -17,6 +17,7 @@ class ShopOrder extends Model
         'shipping_method_id',
         'order_total',
         'order_status_id',
+        'payment_status_id',
     ];
 
     public function user()
@@ -44,6 +45,11 @@ class ShopOrder extends Model
         return $this->belongsTo(OrderStatus::class);
     }
 
+    public function paymentStatus()
+    {
+        return $this->belongsTo(PaymentStatus::class);
+    }
+
     public function orderLines()
     {
         return $this->hasMany(OrderLine::class, 'order_id');
@@ -52,5 +58,10 @@ class ShopOrder extends Model
     public function orderHistory()
     {
         return $this->hasMany(OrderHistory::class, 'order_id');
+    }
+
+    public function userPayments()
+    {
+        return $this->hasMany(UserPayment::class, 'order_id');
     }
 }

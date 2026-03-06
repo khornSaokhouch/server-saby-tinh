@@ -19,9 +19,19 @@ class ShopOrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress']);
+        $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentStatus']);
 
-        if ($user->role !== User::ROLE_ADMIN) {
+        if ($user->role === User::ROLE_OWNER) {
+            $user->load('store');
+            if ($user->store) {
+                $storeId = $user->store->id;
+                $query->whereHas('orderLines.productItemVariant.productItem.product', function($q) use ($storeId) {
+                    $q->where('store_id', $storeId);
+                });
+            } else {
+                $query->where('user_id', $user->id); 
+            }
+        } elseif ($user->role !== User::ROLE_ADMIN) {
             $query->where('user_id', $user->id);
         }
 
@@ -99,7 +109,7 @@ class ShopOrderController extends Controller
 
     public function show($id)
     {
-        $order = ShopOrder::with(['orderLines.productItemVariant.productItem.product.images', 'orderLines.review', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentMethod', 'orderHistory'])
+        $order = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderLines.review', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentMethod', 'orderHistory', 'paymentStatus', 'userPayments'])
             ->find($id);
 
         if (!$order) {
