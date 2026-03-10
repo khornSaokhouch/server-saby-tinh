@@ -1,11 +1,14 @@
 <?php
 use App\Http\Controllers\{AuthController, UserController, CategoryController, TypeController,
      BrandController, StoreController, OrderStatusController, ShippingMethodController, 
-     ColorController, SizeController, PaymentAccountController, EventController, PromotionController, 
-     SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, UserPaymentController};
+     ColorController, SizeController, PaymentAccountController, EventController, PromotionController, PromoCodeController,
+     SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, 
+     ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, 
+     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController};
 use Illuminate\Support\Facades\Route;
 
 // Public
+Route::post('/telegram/webhook', [TelegramController::class, 'webhook']);
 Route::get('/countries', [CountryController::class, 'index']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -40,6 +43,7 @@ Route::get('/products/{idOrSlug}', [ProductController::class, 'show']);
 Route::get('/events/{idOrName}', [EventController::class, 'show']);
 Route::get('/stores/{idOrName}', [StoreController::class, 'show']);
 Route::get('/reviews', [UserReviewController::class, 'index']);
+Route::post('/promo-codes/validate', [PromoCodeController::class, 'validateCode']);
 
 
 // Authenticated
@@ -159,11 +163,38 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/events/{id}', [EventController::class, 'update']);
         Route::delete('/events/{id}', [EventController::class, 'destroy']);
 
-        Route::get('/promotions', [PromotionController::class, 'index']);       // Get all promotions
-        Route::post('/promotions', [PromotionController::class, 'store']);      // Create promotion
-        Route::post('/promotions/{id}', [PromotionController::class, 'update']); // Update promotion
-        Route::delete('/promotions/{id}', [PromotionController::class, 'destroy']); // Delete promotion
+        Route::get('/admin/dashboard', [DashboardController::class, 'index']);
+         Route::get('/admin/promo-code-usages', [PromoCodeUsageController::class, 'index']);
+        Route::get('/admin/promo-code-usages/stats', [PromoCodeUsageController::class, 'stats']);
+
+        // Invoices
+        Route::get('/admin/invoices', [InvoiceController::class, 'index']);
+        Route::get('/admin/invoices/stats', [InvoiceController::class, 'stats']);
+        Route::get('/admin/invoices/store-stats', [InvoiceController::class, 'storeStats']);
+        Route::get('/admin/invoices/{id}', [InvoiceController::class, 'show']);
+        Route::post('/admin/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
     });
+
+
+    // Promotions (Admin + Owner)
+    Route::middleware('role:admin,owner')->group(function () {
+        Route::get('/promotions', [PromotionController::class, 'index']);
+        Route::post('/promotions', [PromotionController::class, 'store']);
+        Route::post('/promotions/{id}', [PromotionController::class, 'update']);
+        Route::delete('/promotions/{id}', [PromotionController::class, 'destroy']);
+
+        // Promotion Categories Management
+        Route::get('/promotion-category/{id}/categories', [PromotionController::class, 'getCategories']);
+        Route::post('/promotion-category/{id}/categories', [PromotionController::class, 'attachCategory']);
+        Route::delete('/promotion-category/{id}/categories/{categoryId}', [PromotionController::class, 'detachCategory']);
+
+        // Promo Codes
+        Route::get('/promo-codes', [PromoCodeController::class, 'index']);
+        Route::post('/promo-codes', [PromoCodeController::class, 'store']);
+        Route::post('/promo-codes/{id}', [PromoCodeController::class, 'update']);
+        Route::delete('/promo-codes/{id}', [PromoCodeController::class, 'destroy']);
+    });
+
 
     // Shopping Cart
     Route::get('/cart', [ShoppingCartController::class, 'index']);

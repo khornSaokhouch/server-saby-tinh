@@ -73,11 +73,13 @@ class BakongController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'qr_string' => $khqrString,
-                    'md5'       => $md5,
-                    'amount'    => $displayAmount,
-                    'currency'  => $currency,
-                    'order_id'  => $order->id
+                    'qr_string'       => $khqrString,
+                    'md5'             => $md5,
+                    'amount'          => $displayAmount,
+                    'currency'        => $currency,
+                    'order_id'        => $order->id,
+                    'original_total'  => $order->subtotal + $order->shipping_fee,
+                    'discount_amount' => $order->discount_amount
                 ]
             ]);
 
@@ -117,6 +119,10 @@ class BakongController extends Controller
                     $order = ShopOrder::find($userPayment->order_id);
                     if ($order) {
                         $order->update(['payment_status_id' => 2]);
+                        
+                        // NEW Logic: Record promo usage and update invoice
+                        $order->recordPromoUsage();
+                        $order->updateInvoiceStatus();
                     }
                 }
             }

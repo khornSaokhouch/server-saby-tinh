@@ -63,7 +63,7 @@ class AuthController extends Controller
     public function profile(): \Illuminate\Http\JsonResponse
     {
         return $this->handleJWT(function ($user) {
-            return $this->successResponse($user->load(['profile', 'store'])->loadCount('shopOrders'));
+            return $this->successResponse($user->load(['profile', 'store', 'socialAccounts'])->loadCount('shopOrders'));
         });
     }
 
@@ -128,6 +128,7 @@ class AuthController extends Controller
      */
     private function respondWithToken(string $token, User $user, string $message, int $status = 200): \Illuminate\Http\JsonResponse
     {
+        $user->load(['profile', 'store', 'socialAccounts'])->loadCount('shopOrders');
         $ttl = (int) config('jwt.ttl', 60);
         return response()->json([
             'success' => true,

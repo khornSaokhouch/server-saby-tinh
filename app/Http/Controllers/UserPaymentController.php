@@ -86,6 +86,16 @@ class UserPaymentController extends Controller
 
         $userPayment->update($data);
 
+        // Sync with ShopOrder
+        if ($userPayment->payment_status_id == 2) { // 2 = Success
+            $order = \App\Models\ShopOrder::find($userPayment->order_id);
+            if ($order) {
+                $order->update(['payment_status_id' => 2]);
+                $order->recordPromoUsage();
+                $order->updateInvoiceStatus();
+            }
+        }
+
         return $this->successResponse(
             $userPayment->load(['user', 'order', 'paymentMethod', 'paymentStatus']),
             'User payment updated successfully'

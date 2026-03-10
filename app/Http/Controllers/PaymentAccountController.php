@@ -9,18 +9,36 @@ use Illuminate\Support\Facades\Auth;
 
 class PaymentAccountController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         $user = Auth::user();
-        
-        $query = PaymentAccount::query()->where('status', true);
+        $query = PaymentAccount::query();
 
-        // If user is not admin, they should see "Platform" accounts (those belonging to admins)
-        // This allows customers to see which bank/method to pay TO.
-        if ($user->role !== 'admin') {
+        // If 'mode=platform' is passed, strictly show only admin accounts
+        if ($request->query('mode') === 'platform') {
             $query->whereHas('user', function($q) {
-                $q->where('role', 'admin');
+                $q->where('role', \App\Models\User::ROLE_ADMIN);
             });
+        } else {
+            // Context-aware defaults for dashboard/management
+            if ($user->role === \App\Models\User::ROLE_ADMIN) {
+                // Admin sees all in management view
+            } elseif ($user->role === \App\Models\User::ROLE_OWNER) {
+                // Owners see only their own in management view
+                $query->where('user_id', $user->id);
+            } else {
+                // Default to admin accounts for anyone else (customers)
+                $query->whereHas('user', function($q) {
+                    $q->where('role', \App\Models\User::ROLE_ADMIN);
+                });
+            }
+        }
+
+        // Always only show active accounts on the platform/checkout
+        // But allow owners/admins to see all in their respective management views if we wanted.
+        // For now, let's keep it consistent: only active accounts for customers/checkout.
+        if ($request->query('mode') === 'platform' || $user->role === \App\Models\User::ROLE_USER) {
+            $query->where('status', true);
         }
 
         $accounts = $query->latest()->get();

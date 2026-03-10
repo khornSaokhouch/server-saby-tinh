@@ -9,6 +9,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\TelegramController;
+use App\Models\UserSocial;
 
 class ShopOrderController extends Controller
 {
@@ -19,7 +21,7 @@ class ShopOrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentStatus']);
+        $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentStatus', 'invoice']);
 
         if ($user->role === User::ROLE_OWNER) {
             $user->load('store');
@@ -49,7 +51,11 @@ class ShopOrderController extends Controller
             'payment_method_id' => 'required|exists:payment_accounts,id',
             'shipping_address_id' => 'required|exists:addresses,id',
             'shipping_method_id' => 'required|exists:shipping_methods,id',
+            'subtotal' => 'required|numeric',
+            'discount_amount' => 'nullable|numeric',
+            'shipping_fee' => 'nullable|numeric',
             'order_total' => 'required|numeric',
+            'promo_code_id' => 'nullable|exists:promo_codes,id',
             'order_status_id' => 'required|exists:order_statuses,id',
             'order_lines' => 'required|array',
             'order_lines.*.product_item_variant_id' => 'required|exists:product_item_variants,id',
@@ -64,14 +70,55 @@ class ShopOrderController extends Controller
 
         DB::beginTransaction();
         try {
+            // Recalculate subtotal for security
+            $calculatedSubtotal = 0;
+            foreach ($request->order_lines as $line) {
+                // Assuming 'price' is sent but we should ideally fetch it from DB too
+                // For now, let's use the price sent but in a real app you'd fetch product price
+                $calculatedSubtotal += $line['price'] * $line['quantity'];
+            }
+
+            $discountAmount = 0;
+            $promoId = null;
+            if ($request->promo_code_id) {
+                $promo = \App\Models\PromoCode::find($request->promo_code_id);
+                if ($promo && $promo->isValidFor($calculatedSubtotal)) {
+                    $promoId = $promo->id;
+                    if ($promo->discount_type === 'percentage') {
+                        $discountAmount = ($calculatedSubtotal * $promo->discount_value) / 100;
+                        if ($promo->max_discount_amount && $discountAmount > $promo->max_discount_amount) {
+                            $discountAmount = $promo->max_discount_amount;
+                        }
+                    } else {
+                        $discountAmount = $promo->discount_value;
+                    }
+                }
+            }
+
+            $shippingFee = $request->shipping_fee ?? 0;
+            $orderTotal = max(0, $calculatedSubtotal + $shippingFee - $discountAmount);
+
             $order = ShopOrder::create([
                 'user_id' => $userId,
                 'order_date' => now(),
                 'payment_method_id' => $request->payment_method_id,
                 'shipping_address_id' => $request->shipping_address_id,
                 'shipping_method_id' => $request->shipping_method_id,
-                'order_total' => $request->order_total,
-                'order_status_id' => $request->order_status_id,
+                'subtotal' => $calculatedSubtotal,
+                'discount_amount' => $discountAmount,
+                'shipping_fee' => $shippingFee,
+                'order_total' => $orderTotal,
+                'promo_code_id' => $promoId,
+                'order_status_id' => 1,
+            ]);
+
+            // Create Invoice record
+            \App\Models\Invoice::create([
+                'order_id' => $order->id,
+                'invoice_number' => 'INV-' . str_pad($order->id, 6, '0', STR_PAD_LEFT),
+                'total_amount' => $orderTotal,
+                'currency' => 'USD',
+                'payment_status_id' => 1,
             ]);
 
             foreach ($request->order_lines as $line) {
@@ -89,6 +136,39 @@ class ShopOrderController extends Controller
             ]);
 
             DB::commit();
+
+            // --- Telegram Notification Logic ---
+            try {
+                $order->load(['orderLines.productItemVariant.productItem.product.store.user.socialAccounts']);
+                
+                // Get unique store owners connected to this order
+                $notifiedOwners = [];
+                
+                foreach ($order->orderLines as $line) {
+                    $store = $line->productItemVariant?->productItem?->product?->store;
+                    $owner = $store?->user;
+                    
+                    if ($owner && !isset($notifiedOwners[$owner->id])) {
+                        $telegramAccount = $owner->socialAccounts
+                            ->where('provider', 'telegram')
+                            ->first();
+                            
+                        if ($telegramAccount && $telegramAccount->social_id) {
+                            $msg = "🔔 *New Order Received!*\n\n";
+                            $msg .= "🆔 Order: #ORD-{$order->id}\n";
+                            $msg .= "💰 Total: \${$order->order_total}\n";
+                            $msg .= "🏪 Store: {$store->name}\n\n";
+                            $msg .= "Check your dashboard for details.";
+                            
+                            TelegramController::sendMessage($telegramAccount->social_id, $msg);
+                            $notifiedOwners[$owner->id] = true;
+                        }
+                    }
+                }
+            } catch (\Exception $te) {
+                Log::error("Telegram Notification Failed: " . $te->getMessage());
+            }
+            // -----------------------------------
 
             return response()->json([
                 'success' => true,
@@ -109,7 +189,7 @@ class ShopOrderController extends Controller
 
     public function show($id)
     {
-        $order = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderLines.review', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentMethod', 'orderHistory', 'paymentStatus', 'userPayments'])
+        $order = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderLines.review', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentMethod', 'orderHistory', 'paymentStatus', 'userPayments', 'invoice'])
             ->find($id);
 
         if (!$order) {

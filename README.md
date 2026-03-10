@@ -61,3 +61,7 @@ The Laravel framework is open-sourced software licensed under the [MIT license](
 
 
 # saby-tinh
+
+
+# run telegram bot
+ php artisan telegram:poll

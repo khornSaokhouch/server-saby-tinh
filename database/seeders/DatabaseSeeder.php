@@ -20,10 +20,5 @@ class DatabaseSeeder extends Seeder
                 'role'     => 'admin',
             ]
         );
-
-        $this->call([
-            PaymentStatusSeeder::class,
-            OrderStatusSeeder::class,
-        ]);
     }
 }

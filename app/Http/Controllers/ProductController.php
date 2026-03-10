@@ -27,7 +27,15 @@ class ProductController extends Controller
     {
         try {
             $user = Auth::user();
-            $query = Product::with(['store', 'category.promotions', 'images', 'items.variants'])
+            $query = Product::with(['store.user', 'category.promotions' => function ($q) {
+                    $q->where('promotions.status', 1);
+                    $now = now();
+                    $q->where(function ($sub) use ($now) {
+                        $sub->whereNull('start_date')->orWhere('start_date', '<=', $now);
+                    })->where(function ($sub) use ($now) {
+                        $sub->whereNull('end_date')->orWhere('end_date', '>=', $now);
+                    });
+                }, 'images', 'items.variants'])
                 ->addSelect(['*', 'reviews_avg_rating' => \App\Models\UserReview::selectRaw('avg(rating)')
                     ->join('order_lines', 'user_reviews.order_line_id', '=', 'order_lines.id')
                     ->join('product_item_variants', 'order_lines.product_item_variant_id', '=', 'product_item_variants.id')
@@ -97,6 +105,7 @@ class ProductController extends Controller
             // Filter by Promotion (Checks if product's category has active promotions)
             if ($request->boolean('has_promotion')) {
                 $query->whereHas('category.promotions', function ($q) {
+                    $q->where('promotions.status', 1);
                     $now = now();
                     $q->where(function ($sub) use ($now) {
                         $sub->whereNull('start_date')
@@ -203,7 +212,15 @@ class ProductController extends Controller
     {
         try {
             // Try by ID first if numeric
-            $productQuery = Product::with(['store', 'category.promotions', 'brand', 'type', 'images', 'items.variants.color', 'items.variants.size'])
+            $productQuery = Product::with(['store.user', 'category.promotions' => function ($q) {
+                    $q->where('promotions.status', 1);
+                    $now = now();
+                    $q->where(function ($sub) use ($now) {
+                        $sub->whereNull('start_date')->orWhere('start_date', '<=', $now);
+                    })->where(function ($sub) use ($now) {
+                        $sub->whereNull('end_date')->orWhere('end_date', '>=', $now);
+                    });
+                }, 'brand', 'type', 'images', 'items.variants.color', 'items.variants.size'])
                 ->addSelect(['*', 'reviews_avg_rating' => \App\Models\UserReview::selectRaw('avg(rating)')
                     ->join('order_lines', 'user_reviews.order_line_id', '=', 'order_lines.id')
                     ->join('product_item_variants', 'order_lines.product_item_variant_id', '=', 'product_item_variants.id')
