@@ -71,7 +71,7 @@ class GoogleAuthController extends Controller
             $token = JWTAuth::fromUser($user);
 
             // Redirect to frontend with token
-            $frontendUrl = config('app.frontend_url', 'http://localhost:3000');
+            $frontendUrl = config('app.frontend_url', 'https://saby-tinh.vercel.app');
             return redirect()->away($frontendUrl . '/auth/callback?token=' . $token);
 
         } catch (\Exception $e) {
