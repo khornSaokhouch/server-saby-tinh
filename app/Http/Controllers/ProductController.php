@@ -27,7 +27,7 @@ class ProductController extends Controller
     {
         try {
             $user = Auth::user();
-            $query = Product::with(['store.user', 'category.promotions' => function ($q) {
+            $query = Product::with(['store.user', 'brand', 'category.promotions' => function ($q) {
                     $q->where('promotions.status', 1);
                     $now = now();
                     $q->where(function ($sub) use ($now) {

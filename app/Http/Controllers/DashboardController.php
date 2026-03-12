@@ -21,11 +21,54 @@ class DashboardController extends Controller
         $totalCustomers = User::where('role', User::ROLE_USER)->count();
         $productsSold = OrderLine::sum('quantity');
 
-        // Trends (Simple mock comparison for now, could be calculated vs last month)
+        // New Trends Calculation (Mocked for now, but ready for real logic)
         $revenueTrend = "+12.5%"; 
         $ordersTrend = "+4.2%";
         $customersTrend = "+8.1%";
         $productsTrend = "-2.4%";
+
+        // 2. Category Distribution
+        $categoryData = DB::table('order_lines')
+            ->join('product_item_variants', 'order_lines.product_item_variant_id', '=', 'product_item_variants.id')
+            ->join('product_items', 'product_item_variants.product_item_id', '=', 'product_items.id')
+            ->join('products', 'product_items.product_id', '=', 'products.id')
+            ->join('categories', 'products.category_id', '=', 'categories.id')
+            ->select('categories.name', DB::raw('SUM(order_lines.quantity) as value'))
+            ->groupBy('categories.id', 'categories.name')
+            ->orderByDesc('value')
+            ->get();
+
+        // Assign some colors for the pie chart
+        $colors = ['#4f46e5', '#ec4899', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+        $categoryData = $categoryData->map(function($item, $index) use ($colors) {
+            $item->color = $colors[$index % count($colors)];
+            return $item;
+        });
+
+        // 3. Top Products
+        $topProducts = DB::table('order_lines')
+            ->join('product_item_variants', 'order_lines.product_item_variant_id', '=', 'product_item_variants.id')
+            ->join('product_items', 'product_item_variants.product_item_id', '=', 'product_items.id')
+            ->join('products', 'product_items.product_id', '=', 'products.id')
+            ->select(
+                'products.id',
+                'products.name',
+                DB::raw('SUM(order_lines.quantity) as sales'),
+                DB::raw('SUM(order_lines.quantity * order_lines.price) as revenue')
+            )
+            ->groupBy('products.id', 'products.name')
+            ->orderByDesc('revenue')
+            ->take(5)
+            ->get()
+            ->map(function($p) {
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'sales' => (int)$p->sales,
+                    'revenue' => '$' . number_format($p->revenue, 2),
+                    'trend' => '+ ' . rand(2, 12) . '%' // Random trend for now
+                ];
+            });
 
         // 2. Revenue Chart (Last 7 Days)
         $revenueData = [];
@@ -121,6 +164,8 @@ class DashboardController extends Controller
                     ]
                 ],
                 'revenue_chart' => $revenueData,
+                'category_data' => $categoryData,
+                'top_products' => $topProducts,
                 'recent_orders' => $recentOrders,
                 'alerts' => array_slice($alerts, 0, 5) // Limit to 5
             ]
