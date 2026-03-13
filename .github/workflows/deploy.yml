@@ -25,7 +25,7 @@ jobs:
             git reset --hard
             git pull origin master
 
-            composer install --no-dev --optimize-autoloader
+            composer update         
 
             php artisan migrate --force
             php artisan config:clear
