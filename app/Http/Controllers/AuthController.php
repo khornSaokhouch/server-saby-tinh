@@ -6,8 +6,12 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use App\Mail\PasswordResetMail;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -65,6 +69,47 @@ class AuthController extends Controller
         return $this->handleJWT(function ($user) {
             return $this->successResponse($user->load(['profile', 'store', 'socialAccounts'])->loadCount('shopOrders'));
         });
+    }
+
+    /* ====================== PASSWORD RESET ====================== */
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:users,email']);
+        
+        $user = User::where('email', $request->email)->first();
+        $token = Password::broker()->createToken($user);
+        
+        $frontendUrl = config('app.frontend_url', 'http://localhost:3000');
+        $resetUrl = "{$frontendUrl}/auth/reset-password?token={$token}&email={$user->email}";
+
+        Mail::to($user->email)->send(new PasswordResetMail($resetUrl, $user->name));
+
+        return $this->successResponse(null, 'Password reset link sent to your email.');
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email'    => 'required|email|exists:users,email',
+            'token'    => 'required|string',
+            'password' => 'required|string|min:6|confirmed',
+        ]);
+
+        $status = Password::broker()->reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => Hash::make($password)
+                ])->save();
+            }
+        );
+
+        if ($status === Password::PASSWORD_RESET) {
+            return $this->successResponse(null, 'Password has been successfully reset.');
+        }
+
+        return $this->errorResponse(__($status), 400);
     }
 
     /* ====================== PRIVATE HELPERS ====================== */

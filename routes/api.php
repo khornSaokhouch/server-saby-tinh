@@ -18,6 +18,10 @@ Route::post('/otp/send', [OtpController::class, 'sendOtp']);
 Route::post('/otp/verify', [OtpController::class, 'verifyOtp']);
 Route::post('/otp/resend', [OtpController::class, 'resendOtp']);
 
+// Password Reset Flow
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
 
 // Social Login (Google/Facebook)
 Route::get('/auth/{provider}/redirect', [GoogleAuthController::class, 'redirectToProvider']);

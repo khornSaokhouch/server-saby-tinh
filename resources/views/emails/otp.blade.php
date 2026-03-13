@@ -46,10 +46,7 @@
                     <!-- Action Button -->
                     <tr>
                         <td style="padding: 0 40px 40px 40px; text-align: center;">
-                            <a href="{{ url('/verify?code=' . $otp) }}" 
-                               style="display: inline-block; width: 100%; background-color: #0f172a; color: #ffffff; padding: 14px 0; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 15px; transition: background-color 0.2s;">
-                                Verify Automatically
-                            </a>
+
                             <p style="margin: 24px 0 0 0; font-size: 13px; color: #64748b;">
                                 Code expires in <span style="color: #ef4444; font-weight: 600;">5 minutes</span>.
                             </p>
