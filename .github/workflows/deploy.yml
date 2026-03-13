@@ -21,7 +21,8 @@ jobs:
           command_timeout: 10m
           script: |
             cd domains/servicemeite.io/public_html/saby-tinh
-
+            
+            git reset --hard
             git pull origin master
 
             composer install --no-dev --optimize-autoloader
