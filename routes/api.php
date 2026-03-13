@@ -53,7 +53,12 @@ Route::post('/promo-codes/validate', [PromoCodeController::class, 'validateCode'
 // Authenticated
 Route::middleware('auth:api')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/logout-all', [AuthController::class, 'logoutAllDevices']);
+    Route::post('/sessions/terminate-multiple', [AuthController::class, 'terminateMultipleSessions']);
+    Route::delete('/sessions/{id}', [AuthController::class, 'terminateSession']);
     Route::get('/profile', [AuthController::class, 'profile']);
+    Route::get('/user/login-history', [AuthController::class, 'getLoginHistory']);
+    Route::get('/user/active-sessions', [AuthController::class, 'getActiveSessions']);
     Route::post('/users/{id}', [UserController::class, 'updateProfile']);
 
     Route::get('/shipping-methods', [ShippingMethodController::class, 'index']);

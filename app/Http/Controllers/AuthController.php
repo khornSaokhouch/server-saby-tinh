@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Models\LoginHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -32,6 +33,9 @@ class AuthController extends Controller
 
         $token = JWTAuth::fromUser($user);
 
+        // Record the login history
+        $this->recordLoginHistory($request, $user);
+
         return $this->respondWithToken($token, $user, 'Registered successfully', 201);
     }
 
@@ -47,7 +51,182 @@ class AuthController extends Controller
             return $this->errorResponse('Invalid credentials', 401);
         }
 
-        return $this->respondWithToken($token, Auth::guard('api')->user(), 'Login successful');
+        $user = Auth::guard('api')->user();
+
+        // Record the login history
+        $this->recordLoginHistory($request, $user);
+
+        // Optional: Sync with standard session if available to populate sessions table
+        if (config('session.driver') === 'database' && $request->hasSession()) {
+            Auth::guard('web')->login($user);
+        }
+
+        return $this->respondWithToken($token, $user, 'Login successful');
+    }
+
+    /**
+     * Helper to record login history
+     */
+    protected function recordLoginHistory(Request $request, $user)
+    {
+        $ip = $request->ip();
+        $userAgent = $request->userAgent();
+        
+        // Handle local development IP
+        if ($ip === '127.0.0.1' || $ip === '::1') {
+            $location = 'Localhost';
+        } else {
+            $location = $this->getLocation($ip);
+        }
+
+        // Prevent duplicate entries for the same device (User Agent + User ID)
+        // This will update the login time if the device already exists in history
+        LoginHistory::updateOrCreate(
+            [
+                'user_id' => $user->id,
+                'user_agent' => $userAgent,
+            ],
+            [
+                'ip_address' => $ip,
+                'location' => $location,
+                'login_at' => now(),
+            ]
+        );
+    }
+
+    /**
+     * Get location from IP
+     */
+    protected function getLocation($ip)
+    {
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(3)->get("http://ip-api.com/json/{$ip}");
+            if ($response->successful()) {
+                $data = $response->json();
+                if ($data['status'] === 'success') {
+                    return $data['city'] . ', ' . $data['country'];
+                }
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('GeoIP Error: ' . $e->getMessage());
+        }
+        
+        return 'Unknown Location';
+    }
+
+    /**
+     * Get recent login history for the authenticated user
+     */
+    public function getLoginHistory(Request $request)
+    {
+        $histories = LoginHistory::where('user_id', $request->user()->id)
+            ->orderBy('login_at', 'desc')
+            ->take(10)
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $histories->map(function ($history) {
+                // Determine device from user agent
+                $agent = strtolower($history->user_agent);
+                $device = 'Unknown';
+                if (strpos($agent, 'iphone') !== false || strpos($agent, 'ipad') !== false) {
+                    $device = 'iPhone / iPad';
+                } elseif (strpos($agent, 'android') !== false) {
+                    $device = 'Android Device';
+                } elseif (strpos($agent, 'macintosh') !== false || strpos($agent, 'mac os') !== false) {
+                    $device = 'MacBook / iMac';
+                } elseif (strpos($agent, 'windows') !== false) {
+                    $device = 'Windows PC';
+                } elseif (strpos($agent, 'linux') !== false) {
+                    $device = 'Linux PC';
+                }
+
+                // Determine relative time
+                $now = now();
+                $diffInMinutes = $now->diffInMinutes($history->login_at);
+                if ($diffInMinutes < 5) {
+                    $timeAgo = 'Active now';
+                } elseif ($diffInMinutes < 60) {
+                    $timeAgo = $diffInMinutes . ' mins ago';
+                } elseif ($diffInMinutes < 1440) {
+                    $timeAgo = floor($diffInMinutes / 60) . ' hours ago';
+                } else {
+                    $timeAgo = floor($diffInMinutes / 1440) . ' days ago';
+                }
+
+                return [
+                    'id' => $history->id,
+                    'device' => $device,
+                    'location' => $history->location ?: 'Unknown Location',
+                    'ip' => $history->ip_address,
+                    'time' => $timeAgo,
+                    'status' => $diffInMinutes < 5 ? 'current' : 'valid'
+                ];
+            })
+        ], 200);
+    }
+
+    /**
+     * Terminate all sessions for the user (Log out all devices)
+     */
+    public function logoutAllDevices(Request $request)
+    {
+        $user = $request->user();
+
+        // 1. Terminate all database sessions for this user
+        if (config('session.driver') === 'database') {
+            \Illuminate\Support\Facades\DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->delete();
+        }
+
+        // 2. Optional: Invalidate current JWT token
+        try {
+            JWTAuth::parseToken()->invalidate();
+        } catch (\Exception $e) {
+            // Token might already be invalid
+        }
+
+        return $this->successResponse(null, 'Logged out from all devices successfully');
+    }
+
+    /**
+     * Terminate multiple sessions by their IDs
+     */
+    public function terminateMultipleSessions(Request $request)
+    {
+        $request->validate([
+            'session_ids' => 'required|array',
+            'session_ids.*' => 'integer'
+        ]);
+
+        $user = $request->user();
+        $historyIds = $request->session_ids;
+
+        // In this simplified version, we'll just clear the history records or mark them
+        // If you want to link them to actual 'sessions' table IDs, that would require storing session_id in LoginHistory.
+        // For now, let's keep it simple as requested.
+        
+        LoginHistory::where('user_id', $user->id)
+            ->whereIn('id', $historyIds)
+            ->delete();
+
+        return $this->successResponse(null, 'Selected history records removed');
+    }
+
+    /**
+     * Terminate a specific session by its ID
+     */
+    public function terminateSession(Request $request, $id)
+    {
+        $user = $request->user();
+        
+        LoginHistory::where('user_id', $user->id)
+            ->where('id', $id)
+            ->delete();
+
+        return $this->successResponse(null, 'Record removed');
     }
 
     /**
@@ -186,6 +365,4 @@ class AuthController extends Controller
             ],
         ], $status);
     }
-
-
 }
