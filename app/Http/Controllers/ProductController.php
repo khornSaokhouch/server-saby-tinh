@@ -117,6 +117,54 @@ class ProductController extends Controller
                 });
             }
 
+            // Filter by specific Promotion ID
+            if ($request->filled('promotion_id')) {
+                $query->whereHas('category.promotions', function ($q) use ($request) {
+                    $q->where('promotions.id', $request->promotion_id)
+                      ->where('promotions.status', 1);
+                    
+                    $now = now();
+                    $q->where(function ($sub) use ($now) {
+                        $sub->whereNull('start_date')->orWhere('start_date', '<=', $now);
+                    })->where(function ($sub) use ($now) {
+                        $sub->whereNull('end_date')->orWhere('end_date', '>=', $now);
+                    });
+                });
+            }
+
+            // Filter by specific Promotion Name
+            if ($request->filled('promotion_name')) {
+                $query->whereHas('category.promotions', function ($q) use ($request) {
+                    $q->where('promotions.name', 'like', "%{$request->promotion_name}%")
+                      ->where('promotions.status', 1);
+                    
+                    $now = now();
+                    $q->where(function ($sub) use ($now) {
+                        $sub->whereNull('start_date')->orWhere('start_date', '<=', $now);
+                    })->where(function ($sub) use ($now) {
+                        $sub->whereNull('end_date')->orWhere('end_date', '>=', $now);
+                    });
+                });
+            }
+
+            // Filter by specific Event Name (via its promotion)
+            if ($request->filled('event_name')) {
+                $query->whereHas('category.promotions', function ($q) use ($request) {
+                    $q->where('promotions.status', 1);
+                    
+                    $now = now();
+                    $q->where(function ($sub) use ($now) {
+                        $sub->whereNull('promotions.start_date')->orWhere('promotions.start_date', '<=', $now);
+                    })->where(function ($sub) use ($now) {
+                        $sub->whereNull('promotions.end_date')->orWhere('promotions.end_date', '>=', $now);
+                    });
+                    
+                    $q->whereHas('events', function ($eq) use ($request) {
+                        $eq->where('name', 'like', "%{$request->event_name}%");
+                    });
+                });
+            }
+
             if ($request->filled('limit')) {
                 $query->limit($request->limit);
             }

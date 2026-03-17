@@ -20,7 +20,7 @@ class EventController extends Controller
     /** =================== INDEX =================== */
     public function index(): JsonResponse
     {
-        $events = Event::latest()->get();
+        $events = Event::with('promotion')->latest()->get();
         return $this->successResponse($events, 'Events retrieved successfully');
     }
 
@@ -53,10 +53,12 @@ class EventController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
+            'promotion_id'=> 'required|exists:promotions,id',
             'name'        => 'required|string|max:255',
             'description' => 'nullable|string',
             'start_date'  => 'nullable|date',
             'end_date'    => 'nullable|date',
+            'status'      => 'nullable|string|in:draft,scheduled,active,expired',
             'event_image' => 'nullable|image|mimes:jpeg,png,jpg|max:4096',
         ]);
 
@@ -83,10 +85,12 @@ class EventController extends Controller
         if (!$event) return $this->errorResponse('Event not found', 404);
 
         $data = $request->validate([
+            'promotion_id'=> 'sometimes|exists:promotions,id',
             'name'        => 'sometimes|string|max:255',
             'description' => 'nullable|string',
             'start_date'  => 'nullable|date',
             'end_date'    => 'nullable|date',
+            'status'      => 'nullable|string|in:draft,scheduled,active,expired',
             'event_image' => 'nullable|image|mimes:jpeg,png,jpg|max:4096',
         ]);
 

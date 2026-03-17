@@ -4,7 +4,7 @@ use App\Http\Controllers\{AuthController, UserController, CategoryController, Ty
      ColorController, SizeController, PaymentAccountController, EventController, PromotionController, PromoCodeController,
      SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, 
      ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, 
-     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController};
+     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController};
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -30,7 +30,21 @@ Route::get('/auth/{provider}/callback', [GoogleAuthController::class, 'handlePro
 
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{id}/products', function ($id) {
-    $products = \App\Models\Product::with(['store', 'category', 'brand', 'type', 'images'])
+    $products = \App\Models\Product::with(['store', 'category.promotions' => function ($q) {
+            $q->where('promotions.status', 1);
+            $now = now();
+            $q->where(function ($sub) use ($now) {
+                $sub->whereNull('start_date')->orWhere('start_date', '<=', $now);
+            })->where(function ($sub) use ($now) {
+                $sub->whereNull('end_date')->orWhere('end_date', '>=', $now);
+            });
+        }, 'brand', 'type', 'images', 'items.variants'])
+        ->addSelect(['*', 'reviews_avg_rating' => \App\Models\UserReview::selectRaw('avg(rating)')
+            ->join('order_lines', 'user_reviews.order_line_id', '=', 'order_lines.id')
+            ->join('product_item_variants', 'order_lines.product_item_variant_id', '=', 'product_item_variants.id')
+            ->join('product_items', 'product_item_variants.product_item_id', '=', 'product_items.id')
+            ->whereColumn('product_items.product_id', 'products.id')
+        ])
         ->where('category_id', $id)
         ->latest()
         ->get();
@@ -46,6 +60,7 @@ Route::get('/sizes', [SizeController::class, 'index']);
 Route::get('/products/{idOrSlug}', [ProductController::class, 'show']);
 Route::get('/events/{idOrName}', [EventController::class, 'show']);
 Route::get('/stores/{idOrName}', [StoreController::class, 'show']);
+Route::get('/search', [SearchController::class, 'index']);
 Route::get('/reviews', [UserReviewController::class, 'index']);
 Route::post('/promo-codes/validate', [PromoCodeController::class, 'validateCode']);
 

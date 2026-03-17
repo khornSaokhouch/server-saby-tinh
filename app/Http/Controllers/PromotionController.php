@@ -29,7 +29,10 @@ class PromotionController extends Controller
         $data = $request->validate([
             'name'               => 'required|string|max:255',
             'description'        => 'nullable|string',
-            'discount_percentage'=> 'required|integer|min:0|max:100',
+            'priority'           => 'nullable|integer',
+            'event_type'         => 'nullable|string|in:promotion,offer,seasonal,global-event',
+            'discount_type'      => 'nullable|string|in:percentage,fixed,none',
+            'discount_value'     => 'nullable|numeric',
             'start_date'         => 'nullable|date',
             'end_date'           => 'nullable|date',
             'status'             => 'nullable|integer|in:0,1',
@@ -44,14 +47,7 @@ class PromotionController extends Controller
         $promotion = Promotion::create($data);
 
         if (!empty($data['category_ids'])) {
-            $pivotData = [];
-            foreach ($data['category_ids'] as $catId) {
-                $pivotData[$catId] = [
-                    'user_id' => $data['user_id'],
-                    'status'  => $data['status']
-                ];
-            }
-            $promotion->categories()->sync($pivotData);
+            $promotion->categories()->sync($data['category_ids']);
         }
 
         return response()->json([
@@ -69,7 +65,10 @@ class PromotionController extends Controller
         $data = $request->validate([
             'name'               => 'sometimes|string|max:255',
             'description'        => 'nullable|string',
-            'discount_percentage'=> 'sometimes|integer|min:0|max:100',
+            'priority'           => 'nullable|integer',
+            'event_type'         => 'nullable|string|in:promotion,offer,seasonal,global-event',
+            'discount_type'      => 'nullable|string|in:percentage,fixed,none',
+            'discount_value'     => 'nullable|numeric',
             'start_date'         => 'nullable|date',
             'end_date'           => 'nullable|date',
             'status'             => 'nullable|integer|in:0,1',
@@ -79,14 +78,7 @@ class PromotionController extends Controller
 
         $promotion->update($data);
         if (isset($data['category_ids'])) {
-            $pivotData = [];
-            foreach ($data['category_ids'] as $catId) {
-                $pivotData[$catId] = [
-                    'user_id' => $promotion->user_id,
-                    'status'  => $data['status'] ?? $promotion->status
-                ];
-            }
-            $promotion->categories()->sync($pivotData);
+            $promotion->categories()->sync($data['category_ids']);
         }
 
         return response()->json([
@@ -111,12 +103,7 @@ class PromotionController extends Controller
 
         $data = $request->validate(['category_id' => 'required|exists:categories,id']);
         
-        $promotion->categories()->syncWithoutDetaching([
-            $data['category_id'] => [
-                'user_id' => $promotion->user_id,
-                'status'  => $promotion->status
-            ]
-        ]);
+        $promotion->categories()->syncWithoutDetaching([$data['category_id']]);
 
         return response()->json(['success' => true]);
     }
