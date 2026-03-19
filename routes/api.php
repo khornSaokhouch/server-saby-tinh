@@ -4,7 +4,7 @@ use App\Http\Controllers\{AuthController, UserController, CategoryController, Ty
      ColorController, SizeController, PaymentAccountController, EventController, PromotionController, PromoCodeController,
      SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, 
      ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, 
-     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController};
+     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, AbaPaywayController, AbaWebhookController};
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -63,6 +63,17 @@ Route::get('/stores/{idOrName}', [StoreController::class, 'show']);
 Route::get('/search', [SearchController::class, 'index']);
 Route::get('/reviews', [UserReviewController::class, 'index']);
 Route::post('/promo-codes/validate', [PromoCodeController::class, 'validateCode']);
+Route::get('/user-addresses/all', [UserAddressController::class, 'adminIndex']);
+
+    // PayWay (ABA) Routes
+    Route::prefix('payway')->group(function () {
+        Route::get('/products', [AbaPaywayController::class, 'showForm']);
+        Route::post('/generate-qr', [AbaPaywayController::class, 'generateQr']);
+        Route::post('/transaction-detail', [AbaPaywayController::class, 'transactionDetail']);
+        Route::post('/check-transaction', [AbaPaywayController::class, 'checkTransaction']);
+        Route::post('/refund', [AbaPaywayController::class, 'refund']);
+        Route::post('/webhook', [AbaWebhookController::class, 'handle']);
+    });
 
 
 // Authenticated
@@ -176,7 +187,7 @@ Route::middleware('auth:api')->group(function () {
         Route::patch('/users/{id}/role', [UserController::class, 'updateRole']); // Update User Role
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
-        Route::get('/user-addresses/all', [UserAddressController::class, 'adminIndex']);
+
 
         // Countries
         Route::post('/countries', [CountryController::class, 'store']);
@@ -242,6 +253,8 @@ Route::middleware('auth:api')->group(function () {
     // Bakong Payments
     Route::post('/bakong/generate-qr', [\App\Http\Controllers\BakongController::class, 'generateQr']);
     Route::post('/bakong/check-status', [\App\Http\Controllers\BakongController::class, 'checkMd5']);
+
+
 
     // Reviews
     Route::post('/reviews', [UserReviewController::class, 'store']);

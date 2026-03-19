@@ -47,5 +47,10 @@ return [
         'url_endpoint' => env('IMAGEKIT_URL_ENDPOINT'),
     ],
 
+    'payway' => [
+        'merchant_id' => env('PAYWAY_MERCHANT_ID', ''),
+        'api_key'     => env('PAYWAY_API_KEY', ''),
+        'base_url'    => env('PAYWAY_BASE_URL', 'https://checkout-sandbox.payway.com.kh'),
+    ],
 
 ];
