@@ -4,11 +4,15 @@ use App\Http\Controllers\{AuthController, UserController, CategoryController, Ty
      ColorController, SizeController, PaymentAccountController, EventController, PromotionController, PromoCodeController,
      SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, 
      ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, 
-     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, AbaPaywayController, AbaWebhookController};
+     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController};
 use Illuminate\Support\Facades\Route;
 
 // Public
 Route::post('/telegram/webhook', [TelegramController::class, 'webhook']);
+
+Route::post('/generate-qr', [BakongController::class, 'generateQr']);
+Route::post('/check-md5', [BakongController::class, 'checkMd5']);
+
 Route::get('/countries', [CountryController::class, 'index']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -148,7 +152,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/companies/{id}', [CompanyInfoController::class, 'update']);
         Route::delete('/companies/{id}', [CompanyInfoController::class, 'destroy']);
         // Products management
-
+        Route::post('/products/batch-delete', [ProductController::class, 'batchDelete']);
         Route::post('/products', [ProductController::class, 'store']);
         Route::match(['POST', 'PUT'], '/products/{id}', [ProductController::class, 'update']);
         Route::delete('/products/{id}', [ProductController::class, 'destroy']);
@@ -167,6 +171,11 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/payment-statuses', [PaymentStatusController::class, 'store']);
         Route::post('/payment-statuses/{id}', [PaymentStatusController::class, 'update']);
         Route::delete('/payment-statuses/{id}', [PaymentStatusController::class, 'destroy']);
+
+        // Reports
+        Route::get('/reports/stats', [ReportByStoreController::class, 'stats']);
+        Route::get('/reports/recent-orders', [ReportByStoreController::class, 'recentOrders']);
+        Route::get('/reports/top-products', [ReportByStoreController::class, 'topProducts']);
     });
 
     // Sellers
@@ -251,8 +260,8 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('/user-payments/{id}', [UserPaymentController::class, 'destroy'])->middleware('role:admin');
 
     // Bakong Payments
-    Route::post('/bakong/generate-qr', [\App\Http\Controllers\BakongController::class, 'generateQr']);
-    Route::post('/bakong/check-status', [\App\Http\Controllers\BakongController::class, 'checkMd5']);
+    Route::post('/bakong/generate-qr', [BakongController::class, 'generateQr']);
+    Route::post('/bakong/check-status', [BakongController::class, 'checkMd5']);
 
 
 

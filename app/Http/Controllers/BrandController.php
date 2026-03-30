@@ -21,13 +21,14 @@ class BrandController extends Controller
 
     public function store(Request $request): JsonResponse {
         $data = $request->validate([
-            'name'   => 'required|string|max:255',
-            'image'  => 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'status' => 'nullable|in:0,1'
+            'name'        => 'required|string|max:255',
+            'brand_image' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'category_id' => 'required|exists:categories,id',
+            'status'      => 'nullable|in:0,1'
         ]);
 
-        if ($request->hasFile('image')) {
-            $data['image'] = $this->uploadToImageKit($request->file('image'));
+        if ($request->hasFile('brand_image')) {
+            $data['brand_image'] = $this->uploadToImageKit($request->file('brand_image'));
         }
 
         $brand = Brand::create($data);
@@ -39,17 +40,18 @@ class BrandController extends Controller
         if (!$brand) return $this->errorResponse('Brand not found', 404);
 
         $data = $request->validate([
-            'name'   => 'sometimes|string|max:255',
-            'image'  => 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'status' => 'sometimes|in:0,1'
+            'name'        => 'sometimes|string|max:255',
+            'brand_image' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'category_id' => 'sometimes|exists:categories,id',
+            'status'      => 'sometimes|in:0,1'
         ]);
 
-        if ($request->hasFile('image')) {
-            if ($brand->image) {
-                $this->imageKit->delete($brand->image);
+        if ($request->hasFile('brand_image')) {
+            if ($brand->brand_image) {
+                $this->imageKit->delete($brand->brand_image);
             }
 
-            $data['image'] = $this->uploadToImageKit($request->file('image'));
+            $data['brand_image'] = $this->uploadToImageKit($request->file('brand_image'));
         }
 
         $brand->update($data);
@@ -60,8 +62,8 @@ class BrandController extends Controller
         $brand = Brand::find($id);
         if (!$brand) return $this->errorResponse('Brand not found', 404);
         
-        if ($brand->image) {
-            $this->imageKit->delete($brand->image);
+        if ($brand->brand_image) {
+            $this->imageKit->delete($brand->brand_image);
         }
 
         $old = $brand;

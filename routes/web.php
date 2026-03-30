@@ -1,36 +1,35 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
+
+
 use App\Http\Controllers\BakongController;
-use App\Http\Controllers\TestaQr;
-use App\Http\Controllers\AbaPaywayController;
+
 
 // Home
 Route::get('/', function () {
     return view('welcome');
 });
 
-// Show Bakong form
-Route::get('/bakong-payment', [BakongController::class, 'showForm'])
-    ->name('bakong.payment-form');
 
-// Generate QR code
-Route::post('/bakong-payment', [BakongController::class, 'generateQr'])
-    ->name('bakong.generate-qr');
 
-// Check MD5
-Route::post('/check-md5', [BakongController::class, 'checkMd5'])
-    ->name('bakong.check-md5');
+/*
+|--------------------------------------------------------------------------
+| TEST ROUTES
+|--------------------------------------------------------------------------
+*/
+Route::get('/bakong', [BakongController::class, 'form']);
+Route::post('/bakong/generate', [BakongController::class, 'generateQr']);
 
-// Test QR
-Route::get('/test-qr', [TestaQr::class, 'generateQr'])
-    ->name('test.qr');
+// ABA Payway Test Routes
+use App\Http\Controllers\AbaPaywayController;
 
-// ABA PayWay Test
-use App\Http\Controllers\TestingAbaController;
-Route::get('/aba-test', [TestingAbaController::class, 'index'])->name('aba.test');
-Route::get('/aba-test/check', [TestingAbaController::class, 'checkTransactionV2'])->name('aba.test.check');
-Route::get('/aba-test/close', [TestingAbaController::class, 'closeTransaction'])->name('aba.test.close');
-Route::get('/aba-test/purchase', [TestingAbaController::class, 'purchase'])->name('aba.test.purchase');
-Route::get('/aba-test/generate-qr', [TestingAbaController::class, 'generateQr'])->name('aba.test.generate-qr');
-Route::post('/aba-test/refund', [TestingAbaController::class, 'refund'])->name('aba.test.refund');
+Route::get('/aba-payway', [AbaPaywayController::class, 'index'])->name('payway.index');
+Route::prefix('aba-payway')->group(function () {
+    Route::get('/products', [AbaPaywayController::class, 'showForm']);
+    Route::post('/generate-qr', [AbaPaywayController::class, 'generateQr']);
+    Route::post('/checkout', [AbaPaywayController::class, 'checkout']);
+    Route::post('/add-card', [AbaPaywayController::class, 'initialAddCard']);
+    Route::post('/check-transaction', [AbaPaywayController::class, 'checkTransaction']);
+});

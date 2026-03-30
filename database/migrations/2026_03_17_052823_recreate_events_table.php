@@ -11,9 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::dropIfExists('events');
         Schema::create('events', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('promotion_id')->nullable()->constrained('promotions')->onDelete('set null');
             $table->string('name');
             $table->text('description')->nullable();
             $table->enum('event_type', ['promotion', 'offer', 'seasonal', 'global-event'])->default('promotion');

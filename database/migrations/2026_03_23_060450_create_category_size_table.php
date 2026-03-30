@@ -11,12 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-       Schema::create('brands', function (Blueprint $table) {
+        Schema::create('category_size', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('category_id')->nullable()->constrained()->onDelete('cascade');
-            $table->string('name');
-            $table->string('brand_image')->nullable();
-            $table->integer('status')->default(1); // 1=active, 0=inactive
+            $table->foreignId('category_id')->constrained()->onDelete('cascade');
+            $table->foreignId('size_id')->constrained()->onDelete('cascade');
+            $table->unique(['category_id', 'size_id']);
             $table->timestamps();
         });
     }
@@ -26,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('brands');
+        Schema::dropIfExists('category_size');
     }
 };

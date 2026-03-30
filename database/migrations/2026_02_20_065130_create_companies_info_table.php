@@ -14,6 +14,7 @@ return new class extends Migration
         Schema::create('companies_info', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('address_id')->nullable()->constrained('addresses')->onDelete('set null');
             $table->string('company_name');
             $table->string('company_image')->nullable();
             $table->text('description')->nullable();
@@ -24,8 +25,6 @@ return new class extends Migration
             $table->string('instagram_url')->nullable();
             $table->string('twitter_url')->nullable();
             $table->string('linkedin_url')->nullable();
-            $table->decimal('latitude', 10, 7)->nullable();
-            $table->decimal('longitude', 10, 7)->nullable();
             $table->timestamps();
         });
     }

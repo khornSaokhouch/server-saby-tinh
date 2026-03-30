@@ -43,6 +43,140 @@ class AbaPaywayController extends Controller
         ]);
     }
 
+    public function checkout(Request $request)
+    {
+        $request->validate([
+            'tran_id'         => 'required|string',
+            'product_ids'     => 'required|array|min:1',
+            'product_ids.*'   => 'exists:products,id',
+            'currency'        => 'required|in:USD,KHR',
+            'payment_option'  => 'required|string',
+        ]);
+
+        $selectedProducts = Product::whereIn('id', $request->product_ids)->get();
+        $totalAmount = $selectedProducts->sum(fn($p) => (float) $p->price);
+        
+        $reqTime  = $this->reqTime();
+        $tranId   = $request->tran_id;
+        $currency = $request->currency;
+        $amount   = ($currency === 'KHR') ? number_format($totalAmount, 0, '.', '') : number_format($totalAmount, 2, '.', '');
+        
+        $firstName = 'Khorn';
+        $lastName  = 'saokhouch';
+        $email     = 'khornsaokhouch4456@gmail.com';
+        $phone     = '0964415022';
+        $paymentOption = $request->payment_option; // 'abapay', 'cards', or 'abapay,cards'
+        
+        $returnUrl = $request->return_url ?? route('payway.index');
+        $cancelUrl = $request->cancel_url ?? route('payway.index');
+        $continueSuccessUrl = $request->continue_success_url ?? route('payway.index');
+        
+        // Hash Order for Purchase/Checkout: 
+        // req_time + merchant_id + tran_id + amount + firstname + lastname + email + phone + payment_option + return_url + cancel_url + continue_success_url + currency + custom_fields + return_params
+        $hashData = [
+            $reqTime,
+            $this->merchantId,
+            $tranId,
+            $amount,
+            $firstName,
+            $lastName,
+            $email,
+            $phone,
+            $paymentOption,
+            $returnUrl,
+            $cancelUrl,
+            $continueSuccessUrl,
+            $currency,
+            '', // custom_fields
+            '', // return_params
+        ];
+        
+        $hash = $this->sign($hashData);
+        
+        $data = [
+            'req_time'             => $reqTime,
+            'merchant_id'          => $this->merchantId,
+            'tran_id'              => $tranId,
+            'amount'               => $amount,
+            'firstname'            => $firstName,
+            'lastname'             => $lastName,
+            'email'                => $email,
+            'phone'                => $phone,
+            'payment_option'       => $paymentOption,
+            'currency'             => $currency,
+            'return_url'           => base64_encode($returnUrl),
+            'cancel_url'           => base64_encode($cancelUrl),
+            'continue_success_url' => base64_encode($continueSuccessUrl),
+            'hash'                 => $hash,
+        ];
+
+        // This endpoint returns a redirection form or URL
+        return response()->json([
+            'success' => true,
+            'url'     => "{$this->baseUrl}/api/payment-gateway/v1/payments/purchase",
+            'params'  => $data
+        ]);
+    }
+
+    public function initialAddCard(Request $request)
+    {
+        $reqTime = $this->reqTime();
+        $ctid    = 'CTID-' . time(); // Unique customer transaction ID
+        
+        $firstName = $request->first_name ?? 'Khorn';
+        $lastName  = $request->last_name ?? 'saokhouch';
+        $email     = $request->email ?? 'khornsaokhouch4456@gmail.com';
+        $phone     = $request->phone ?? '0964415022';
+        $returnUrl    = $request->return_url ?? route('payway.index');
+        $returnParams = $request->return_params ?? 'rp-' . time();
+
+        // Hash Order for COF Initial: 
+        // req_time + merchant_id + ctid + firstname + lastname + email + phone + return_url + return_params
+        $hashData = [
+            $reqTime,
+            $this->merchantId,
+            $ctid,
+            $firstName,
+            $lastName,
+            $email,
+            $phone,
+            $returnUrl,
+            $returnParams,
+        ];
+
+        $hash = $this->sign($hashData);
+
+        $payload = [
+            'req_time'      => $reqTime,
+            'merchant_id'   => $this->merchantId,
+            'ctid'          => $ctid,
+            'firstname'     => $firstName,
+            'lastname'      => $lastName,
+            'email'         => $email,
+            'phone'         => $phone,
+            'return_url'    => $returnUrl,
+            'return_params' => $returnParams,
+            'hash'          => $hash,
+        ];
+
+        Log::info('PayWay Initial Add Card Request (For SDK)', $payload);
+
+        return response()->json([
+            'success'      => true,
+            'merchant_id'  => $this->merchantId,
+            'req_time'     => $reqTime,
+            'ctid'         => $ctid,
+            'firstname'    => $firstName,
+            'lastname'     => $lastName,
+            'email'        => $email,
+            'phone'        => $phone,
+            'return_url'   => $returnUrl,
+            'return_params'=> $returnParams,
+            'hash'         => $hash,
+            'action_url'   => "{$this->baseUrl}/api/payment-gateway/v1/cof/initial?lang=en",
+        ]);
+    }
+
     public function generateQr(Request $request)
     {
         $request->validate([
@@ -74,7 +208,7 @@ class AbaPaywayController extends Controller
 
         $itemsBase64 = base64_encode(json_encode($itemsArray, JSON_UNESCAPED_SLASHES));
 
-        $paymentOption = $request->payment_option ?? 'abapay_khqr';
+        $paymentOption = $request->payment_option ?? 'abapay';
         $currency      = $request->currency ?? 'USD';
         $returnParams  = $request->return_params ?? '';
         
@@ -191,7 +325,7 @@ class AbaPaywayController extends Controller
                     }
                 }
 
-                $finalQrOutput = $localQr ?: (!empty($qrImage) ? 'data:image/png;base64,' . $qrImage : '');
+                $finalQrOutput = (!empty($qrImage) ? 'data:image/png;base64,' . $qrImage : '') ?: $localQr;
 
                 $result = [
                     'qrString'         => $qrString ?: ($qrStringForLocal ?? ''),
@@ -212,6 +346,12 @@ class AbaPaywayController extends Controller
                     'success'          => true,
                 ];
             } else {
+                Log::error('PayWay Generate QR Failed' , [
+                    'status'   => $response->status(),
+                    'payload'  => $payload,
+                    'response' => $apiResponse ?? $response->body()
+                ]);
+
                 $result = [
                     'success'     => false,
                     'endpoint'    => 'Generate QR',
@@ -361,5 +501,10 @@ class AbaPaywayController extends Controller
             $result = ['endpoint' => 'Refund', 'success' => false, 'response' => ['error' => $e->getMessage()]];
         }
         return response()->json($result, $result['success'] ? 200 : 400);
+    }
+
+    public function index()
+    {
+        return view('aba_payway');
     }
 }

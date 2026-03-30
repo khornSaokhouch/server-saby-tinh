@@ -416,4 +416,32 @@ class ProductController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
+
+    public function batchDelete(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids'   => 'required|array|min:1',
+            'ids.*' => 'integer|exists:products,id',
+        ]);
+
+        try {
+            $ids = $request->input('ids');
+            $products = Product::whereIn('id', $ids)->get();
+
+            foreach ($products as $product) {
+                $images = ProductImage::where('product_id', $product->id)->get();
+                foreach ($images as $img) {
+                    $this->imageKit->delete($img->image);
+                }
+                $product->delete();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => count($ids) . ' products deleted successfully',
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
 }

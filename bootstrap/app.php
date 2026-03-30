@@ -12,9 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-       $middleware->alias([
-        'role' => \App\Middleware\RoleMiddleware::class,
-        ]);
+        $middleware->append(\App\Middleware\LogRequestMiddleware::class);
+        $middleware->alias([
+         'role' => \App\Middleware\RoleMiddleware::class,
+         'bot.secret' => \App\Middleware\BotSecretMiddleware::class,
+         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

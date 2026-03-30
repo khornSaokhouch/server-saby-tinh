@@ -20,6 +20,8 @@ return new class extends Migration
             $table->foreignId('shipping_method_id')->constrained('shipping_methods')->onDelete('cascade');
             $table->decimal('order_total', 12, 2);
             $table->foreignId('order_status_id')->constrained('order_statuses')->onDelete('cascade');
+            $table->foreignId('payment_status_id')->nullable()->constrained('payment_statuses')->onDelete('cascade');
+            $table->foreignId('promo_code_id')->nullable()->constrained('promo_codes')->onDelete('cascade');
             $table->timestamps();
         });
     }

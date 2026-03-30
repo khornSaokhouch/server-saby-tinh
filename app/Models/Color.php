@@ -7,4 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class Color extends Model
 {
     protected $fillable = ['name'];
+
+    public function categories()
+    {
+        return $this->belongsToMany(Category::class, 'category_color');
+    }
 }

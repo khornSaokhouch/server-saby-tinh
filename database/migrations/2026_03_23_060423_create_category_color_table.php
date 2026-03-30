@@ -11,11 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::dropIfExists('user_address');
-        Schema::create('user_address', function (Blueprint $table) {
+        Schema::create('category_color', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('address_id')->constrained('addresses')->onDelete('cascade');
+            $table->foreignId('category_id')->constrained()->onDelete('cascade');
+            $table->foreignId('color_id')->constrained()->onDelete('cascade');
+            $table->unique(['category_id', 'color_id']);
             $table->timestamps();
         });
     }
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_address');
+        Schema::dropIfExists('category_color');
     }
 };

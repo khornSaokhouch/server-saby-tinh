@@ -17,6 +17,7 @@ return new class extends Migration
         $table->string('name');
         $table->string('company_name');
         $table->string('email')->unique();
+        $table->string('status')->default('pending');
         $table->string('country_region')->nullable();
         $table->text('street_address')->nullable();
         $table->string('phone_number')->nullable();

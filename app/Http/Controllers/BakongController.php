@@ -36,26 +36,54 @@ class BakongController extends Controller
         $khqrCurrency = ($currency === 'USD') ? KHQRData::CURRENCY_USD : KHQRData::CURRENCY_KHR;
 
         try {
-            $individualInfo = new IndividualInfo(
-                bakongAccountID: $paymentAccount->account_id,
-                merchantName: $paymentAccount->account_name,
-                merchantCity: $paymentAccount->account_city ?? 'PHNOM PENH',
-                currency: $khqrCurrency,
-                amount: (float) $displayAmount,
-                billNumber: 'INV-' . strtoupper(uniqid()),
+            // Generate KHQR string manually to match node.js correct standard
+            $khqrString = $this->generateKhqrString(
+                $paymentAccount->account_id,
+                $paymentAccount->account_name,
+                $paymentAccount->account_city ?? 'Phnom Penh',
+                $displayAmount,
+                $currency,
+                'INV-' . $order->id
             );
+            $md5 = md5($khqrString);
 
-            $response = BakongKHQR::generateIndividual($individualInfo);
 
-            if ($response->status['code'] !== 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $response->status['message']
-                ], 400);
+            // Get stylized QR image from Relay API
+            $qrImage = null;
+            try {
+                $relayUrl = env('API_GENERATE_QR_BAKONG', 'https://api.bakongrelay.com/v1/generate_khqr_image');
+                $templateUrl = env('QR_TEMPLATE_URL', 'https://raw.githubusercontent.com/bsthen/bakong-khqr/main/bakong_khqr/template.png');
+
+                $relayResponse = \Illuminate\Support\Facades\Http::timeout(10)->post($relayUrl, [
+                    'qr' => $khqrString,
+                    'source' => $templateUrl
+                ]);
+
+                if ($relayResponse->successful()) {
+                    $rawBody = $relayResponse->body();
+                    $isJson = false;
+
+                    if (str_starts_with(trim($rawBody), '{')) {
+                        $json = json_decode($rawBody, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $isJson = true;
+                            $imageData = $json['data'] ?? $json['qr_image'] ?? $json['image'] ?? null;
+                            if (is_array($imageData)) {
+                                $imageData = $imageData['image'] ?? $imageData['base64'] ?? $imageData['url'] ?? $imageData['data'] ?? null;
+                            }
+                            if (is_string($imageData) && !str_starts_with(trim($imageData), '{')) {
+                                $qrImage = str_starts_with($imageData, 'data:image') ? $imageData : 'data:image/png;base64,' . $imageData;
+                            }
+                        }
+                    }
+
+                    if (!$isJson && !$qrImage) {
+                        $qrImage = 'data:image/png;base64,' . base64_encode($rawBody);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('[KHQR] Relay API failed: ' . $e->getMessage());
             }
-
-            $khqrString = $response->data['qr'];
-            $md5 = $response->data['md5'];
 
             // Save the payment record
             UserPayment::updateOrCreate(
@@ -74,6 +102,7 @@ class BakongController extends Controller
                 'success' => true,
                 'data' => [
                     'qr_string'       => $khqrString,
+                    'qr_image'        => $qrImage,
                     'md5'             => $md5,
                     'amount'          => $displayAmount,
                     'currency'        => $currency,
@@ -140,5 +169,86 @@ class BakongController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Helper to compute CRC16 CCITT
+     */
+    private function calculateCrc16($data)
+    {
+        $crc = 0xFFFF;
+        $jf = 0x1021;
+        $length = strlen($data);
+
+        for ($i = 0; $i < $length; $i++) {
+            $b = ord($data[$i]);
+            for ($j = 0; $j < 8; $j++) {
+                $bit = (($b >> (7 - $j)) & 1) == 1;
+                $c15 = (($crc >> 15) & 1) == 1;
+                $crc <<= 1;
+                if ($c15 ^ $bit) {
+                    $crc ^= $jf;
+                }
+            }
+        }
+        $crc &= 0xFFFF;
+        return strtoupper(str_pad(dechex($crc), 4, '0', STR_PAD_LEFT));
+    }
+
+    /**
+     * Helper to compute TLV
+     */
+    private function generateTlv($tag, $value)
+    {
+        if ($value === null || $value === '') {
+            return '';
+        }
+        $valueStr = (string) $value;
+        $length = str_pad((string) strlen($valueStr), 2, '0', STR_PAD_LEFT);
+        return $tag . $length . $valueStr;
+    }
+
+    /**
+     * Generate KHQR directly matching validated node.js structure
+     */
+    private function generateKhqrString($bankAccount, $merchantName, $merchantCity, $amount, $currency, $billNumber)
+    {
+        $qr = "";
+        $qr .= $this->generateTlv("00", "01"); // Payload Format Indicator
+        $qr .= $this->generateTlv("01", "12"); // Point of Initiation (Dynamic)
+        
+        // Tag 29: Individual Bakong Account
+        $qr .= $this->generateTlv("29", $this->generateTlv("00", $bankAccount));
+        
+        $qr .= $this->generateTlv("52", "5999"); // MCC
+        $qr .= $this->generateTlv("53", $currency === 'KHR' ? "116" : "840"); // Transaction Currency
+        
+        if ($amount !== null && $amount !== '') {
+            if ($currency === 'KHR') {
+                $amountStr = (string) round((float)$amount);
+            } else {
+                $amountStr = number_format((float)$amount, 2, '.', '');
+            }
+            $qr .= $this->generateTlv("54", $amountStr);
+        }
+        
+        $qr .= $this->generateTlv("58", "KH");
+        $qr .= $this->generateTlv("59", $merchantName);
+        $qr .= $this->generateTlv("60", $merchantCity ?: "Phnom Penh");
+        
+        // Tag 99: Timestamp (identical to Node.js / Python)
+        $now = (int) round(microtime(true) * 1000);
+        $expiry = $now + (86400000 * 1); // 1 day
+        $tag99inner = $this->generateTlv("00", (string)$now) . $this->generateTlv("01", (string)$expiry);
+        $qr .= $this->generateTlv("99", $tag99inner);
+        
+        if ($billNumber) {
+            $qr .= $this->generateTlv("62", $this->generateTlv("01", $billNumber));
+        }
+        
+        $qr .= "6304";
+        $qr .= $this->calculateCrc16($qr);
+        
+        return $qr;
     }
 }

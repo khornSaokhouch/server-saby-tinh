@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Mail;
 use GuzzleHttp\Client;
 use App\Services\ImageKitService;
+use App\Mail\SellerApplicationMail;
+use App\Mail\SellerStatusMail;
 
 class SellerController extends Controller
 {
@@ -85,6 +87,10 @@ class SellerController extends Controller
 
         $seller->document_path = $path;
         $seller->save();
+
+        // 📧 Notify Admin about new seller registration (Modern HTML)
+        Mail::to(env('SEED_ADMIN_EMAIL', 'khornsaokhouch4456@gmail.com'))
+            ->send(new SellerApplicationMail($seller));
     
         return response()->json([
             'message' => 'Seller registration submitted successfully!',
@@ -123,21 +129,14 @@ class SellerController extends Controller
         $user->role = 'owner';
         $user->save();
 
-        // 📧 Send email to seller
-        Mail::raw("
-✅ Congratulations!
-
-Your seller account has been approved.
-
-🏢 Company: {$seller->company_name}
-👤 Name: {$seller->name}
-📧 Email: {$seller->email}
-
-You can now log in and manage your company profile.
-        ", function ($message) use ($seller) {
-            $message->to($seller->email)
-                    ->subject('✅ Seller Account Approved');
-        });
+        // 📧 Send professional approval email to seller
+        Mail::to($seller->email)->send(new SellerStatusMail(
+            $seller,
+            'approved',
+            'Congratulations! Your Seller Account is Active',
+            "We are excited to inform you that your seller registration for '{$seller->company_name}' has been approved. Your account has been upgraded to 'Owner' status.",
+            '#10b981' // Green
+        ));
 
         return response()->json([
             'message' => 'Seller approved and email sent.',
@@ -154,19 +153,14 @@ You can now log in and manage your company profile.
             return response()->json(['message' => 'Approved sellers cannot be rejected.'], 400);
         }
 
-        // 📧 Send rejection email
-        Mail::raw("
-❌ Unfortunately, your seller registration has been rejected.
-
-🏢 Company: {$seller->company_name}
-👤 Name: {$seller->name}
-📧 Email: {$seller->email}
-
-If you believe this was a mistake, please contact our support team.
-        ", function ($message) use ($seller) {
-            $message->to($seller->email)
-                    ->subject('❌ Seller Registration Rejected');
-        });
+        // 📧 Send professional rejection email
+        Mail::to($seller->email)->send(new SellerStatusMail(
+            $seller,
+            'rejected',
+            'Update Regarding Your Seller Registration',
+            "Thank you for your interest in Saby-tinh. Unfortunately, we are unable to approve your seller registration for '{$seller->company_name}' at this time.",
+            '#ef4444' // Red
+        ));
 
         // 🗑️ Cleanup ImageKit
         $this->imageKitService->delete($seller->document_path);

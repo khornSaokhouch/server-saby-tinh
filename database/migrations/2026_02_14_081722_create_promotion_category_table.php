@@ -13,23 +13,24 @@ return new class extends Migration
     {
         Schema::create('promotions', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             $table->string('name');
             $table->text('description')->nullable();
-            $table->integer('discount_percentage');
+            $table->integer('status')->default(1);
+            $table->integer('priority')->default(0);
+            $table->enum('event_type', ['promotion', 'offer', 'seasonal', 'global-event'])->default('promotion');
+            $table->enum('discount_type', ['percentage', 'fixed', 'none'])->default('none');
+            $table->decimal('discount_value', 10, 2)->default(0);
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
             $table->timestamps();
         });
 
         Schema::create('promotion_category', function (Blueprint $table) {
-            $table->foreignId('promotion_id')
-                  ->constrained('promotions')
-                  ->onDelete('cascade');
-            $table->foreignId('category_id')
-                  ->constrained('categories') // make sure your table name matches
-                  ->onDelete('cascade');
+            $table->foreignId('promotion_id')->constrained('promotions')->onDelete('cascade');
+            $table->foreignId('category_id')->constrained('categories')->onDelete('cascade');
             $table->primary(['promotion_id', 'category_id']);
-            $table->timestamps(); // optional if you want created_at/updated_at
+            $table->timestamps();
         });
     }
 

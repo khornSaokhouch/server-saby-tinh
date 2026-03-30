@@ -48,7 +48,7 @@ class TelegramController extends Controller
 
             // 4. Default: Provide Auto-Login link
             $token = JWTAuth::fromUser($user);
-            $frontendUrl = config('app.frontend_url', 'http://localhost:3000');
+            $frontendUrl = config('app.frontend_url');
             $loginUrl = $frontendUrl . "/auth/callback?token=" . $token;
 
             $message = "👋 Hello {$user->name}!\n\n";

@@ -9,7 +9,7 @@ class Category extends Model
     protected $fillable = ['name', 'category_image', 'status'];
 
     protected $casts = [
-        'status' => 'integer', // Ensures status always returns as a number
+        'status' => 'integer',
     ];
 
     public function types()
@@ -18,8 +18,17 @@ class Category extends Model
     }
 
     public function promotions()
-{
-    return $this->belongsToMany(Promotion::class, 'promotion_category');
-}
+    {
+        return $this->belongsToMany(Promotion::class, 'promotion_category');
+    }
 
+    public function colors()
+    {
+        return $this->belongsToMany(Color::class, 'category_color');
+    }
+
+    public function sizes()
+    {
+        return $this->belongsToMany(Size::class, 'category_size');
+    }
 }

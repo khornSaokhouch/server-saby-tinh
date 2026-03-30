@@ -10,13 +10,16 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::create('sizes', function (Blueprint $table) {
-        $table->id();
-        $table->string('name')->unique();
-        $table->timestamps();
-    });
-}
+    {
+        Schema::create('sizes', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('category_id')->nullable()->constrained()->onDelete('cascade');
+            $table->string('name');
+            $table->timestamps();
+            
+            $table->unique(['name', 'category_id']);
+        });
+    }
 
 
     /**
