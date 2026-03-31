@@ -168,6 +168,14 @@ class AuthController extends Controller
     }
 
     /**
+     * Get active sessions (Alias for login history in this implementation)
+     */
+    public function getActiveSessions(Request $request)
+    {
+        return $this->getLoginHistory($request);
+    }
+
+    /**
      * Terminate all sessions for the user (Log out all devices)
      */
     public function logoutAllDevices(Request $request)
@@ -289,6 +297,51 @@ class AuthController extends Controller
         }
 
         return $this->errorResponse(__($status), 400);
+    }
+
+    /**
+     * Update password for authenticated user
+     */
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password'         => 'required|string|min:6|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return $this->errorResponse('The current password provided is incorrect.', 422);
+        }
+
+        $user->forceFill([
+            'password' => Hash::make($request->password)
+        ])->save();
+
+        return $this->successResponse(null, 'Your password has been successfully updated.');
+    }
+
+    /**
+     * Verify current password for authenticated user
+     */
+    public function verifyPassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+
+        $user = Auth::guard('api')->user();
+
+        if (!$user) {
+            return $this->errorResponse('Unauthorized access.', 401);
+        }
+
+        if (!Hash::check($request->password, $user->password)) {
+            return $this->errorResponse('The current password you entered is incorrect.', 403);
+        }
+
+        return $this->successResponse(null, 'Identity verified successfully.');
     }
 
     /* ====================== PRIVATE HELPERS ====================== */

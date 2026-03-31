@@ -201,4 +201,30 @@ class ShopOrderController extends Controller
             'data' => $order
         ]);
     }
+
+    public function confirm($id)
+    {
+        $order = ShopOrder::find($id);
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found'], 404);
+        }
+
+        // Update to 'Confirmed' (ID 2)
+        $order->update(['order_status_id' => 2]);
+
+        // Record History
+        \App\Models\OrderHistory::create([
+            'order_id' => $order->id,
+            'user_id' => auth()->id(),
+            'status_update' => 'Order Confirmed',
+            'description' => 'The store owner has reviewed and confirmed your order. Processing has begun.',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Order confirmed successfully',
+            'data' => $order->load('orderStatus')
+        ]);
+    }
 }

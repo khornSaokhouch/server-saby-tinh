@@ -4,14 +4,13 @@ use App\Http\Controllers\{AuthController, UserController, CategoryController, Ty
      ColorController, SizeController, PaymentAccountController, EventController, PromotionController, PromoCodeController,
      SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, 
      ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, 
-     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController};
+     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController};
 use Illuminate\Support\Facades\Route;
 
 // Public
 Route::post('/telegram/webhook', [TelegramController::class, 'webhook']);
 
-Route::post('/generate-qr', [BakongController::class, 'generateQr']);
-Route::post('/check-md5', [BakongController::class, 'checkMd5']);
+
 
 Route::get('/countries', [CountryController::class, 'index']);
 Route::post('/register', [AuthController::class, 'register']);
@@ -90,11 +89,16 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/user/login-history', [AuthController::class, 'getLoginHistory']);
     Route::get('/user/active-sessions', [AuthController::class, 'getActiveSessions']);
     Route::post('/users/{id}', [UserController::class, 'updateProfile']);
+    Route::post('/update-password', [AuthController::class, 'updatePassword']);
+    Route::post('/verify-password', [AuthController::class, 'verifyPassword']);
 
     Route::get('/shipping-methods', [ShippingMethodController::class, 'index']);
     Route::get('/order-statuses', [OrderStatusController::class, 'index']);
     Route::get('/payment-statuses', [PaymentStatusController::class, 'index']);
     Route::get('/payment-accounts', [PaymentAccountController::class, 'index']);
+    //Bakong Routes
+    Route::post('/generate-qr', [BakongController::class, 'generateQr']);
+    Route::post('/check-md5', [BakongController::class, 'checkMd5']);
     
     // Admin & Owner Routes (Corrected space)
     Route::middleware('role:admin,owner')->group(function () {
@@ -176,6 +180,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/reports/stats', [ReportByStoreController::class, 'stats']);
         Route::get('/reports/recent-orders', [ReportByStoreController::class, 'recentOrders']);
         Route::get('/reports/top-products', [ReportByStoreController::class, 'topProducts']);
+
+        // Payouts
+        Route::apiResource('payouts', PayoutController::class);
     });
 
     // Sellers
@@ -251,6 +258,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/orders', [ShopOrderController::class, 'index']);
     Route::post('/orders', [ShopOrderController::class, 'store']);
     Route::get('/orders/{id}', [ShopOrderController::class, 'show']);
+    Route::post('/orders/{id}/confirm', [ShopOrderController::class, 'confirm']);
 
     // User Payments
     Route::get('/user-payments', [UserPaymentController::class, 'index']);
