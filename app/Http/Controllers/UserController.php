@@ -66,7 +66,7 @@ class UserController extends Controller
 
                 $user->profile()->create([
                     'bio'           => $data['bio'] ?? null,
-                    'image_profile' => $imageUrl,
+                    'profile_image' => $imageUrl,
                 ]);
 
                 return $this->successResponse($user->load('profile'), 'User created successfully', 201);
@@ -120,7 +120,7 @@ class UserController extends Controller
                 );
                 
                 if ($url) {
-                    $profile->image_profile = $url;
+                    $profile->profile_image = $url;
                 }
             }
             

@@ -126,6 +126,6 @@ class User extends Authenticatable implements JWTSubject
      */
     public function getProfileImageUrlAttribute()
     {
-        return $this->profile?->image_profile;
+        return $this->profile?->profile_image;
     }
 }

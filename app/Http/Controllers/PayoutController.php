@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Http\Controllers\Api;
+namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payout;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class PayoutController extends Controller
@@ -16,7 +17,15 @@ class PayoutController extends Controller
     {
         $query = Payout::with(['invoice', 'store', 'status']);
 
-        if ($request->has('store_id')) {
+        // Security override: Owners can only see their own store's payouts
+        if (auth()->check() && auth()->user()->role === 'owner') {
+            $ownerStore = \App\Models\Store::where('user_id', auth()->id())->first();
+            if ($ownerStore) {
+                $query->where('store_id', $ownerStore->id);
+            } else {
+                return response()->json(['success' => true, 'data' => []]);
+            }
+        } elseif ($request->has('store_id')) {
             $query->where('store_id', $request->store_id);
         }
 
@@ -103,5 +112,57 @@ class PayoutController extends Controller
             'success' => true,
             'message' => 'Payout record deleted successfully'
         ]);
+    }
+
+    /**
+     * Bulk-create payout records in a single transaction.
+     * Request body: { store_id, currency, payment_status_id, payouts: [{ invoice_id, amount }] }
+     */
+    public function bulkStore(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'store_id'           => 'required|exists:stores,id',
+            'currency'           => 'required|string|in:KHR,USD',
+            'payment_status_id'  => 'required|exists:payment_statuses,id',
+            'payouts'            => 'required|array|min:1',
+            'payouts.*.invoice_id' => 'required|exists:invoices,id',
+            'payouts.*.amount'     => 'required|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $created = [];
+        $failed  = [];
+        $now     = now();
+        $batchRef = 'BULK-' . $now->timestamp;
+
+        DB::transaction(function () use ($request, $now, $batchRef, &$created, &$failed) {
+            foreach ($request->payouts as $item) {
+                try {
+                    $payout = Payout::create([
+                        'invoice_id'            => $item['invoice_id'],
+                        'store_id'              => $request->store_id,
+                        'amount'                => $item['amount'],
+                        'currency'              => $request->currency,
+                        'payment_status_id'     => $request->payment_status_id,
+                        'paid_at'               => $now,
+                        'transaction_reference' => $batchRef . '-' . $item['invoice_id'],
+                    ]);
+                    $created[] = $payout->id;
+                } catch (\Exception $e) {
+                    $failed[] = $item['invoice_id'];
+                }
+            }
+        });
+
+        return response()->json([
+            'success'       => true,
+            'total'         => count($request->payouts),
+            'created_count' => count($created),
+            'failed_count'  => count($failed),
+            'failed_ids'    => $failed,
+        ], 201);
     }
 }

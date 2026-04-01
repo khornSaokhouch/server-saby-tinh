@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\ShopOrder;
+use App\Models\Store;
 use App\Models\UserPayment;
 use App\Models\PaymentStatus;
 use App\Models\PaymentAccount;
@@ -109,6 +110,107 @@ class BakongController extends Controller
                     'order_id'        => $order->id,
                     'original_total'  => $order->subtotal + $order->shipping_fee,
                     'discount_amount' => $order->discount_amount
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate a Bakong QR code for Store Payout
+     */
+    public function generatePayoutQr(Request $request)
+    {
+        $request->validate([
+            'store_id' => 'required|exists:stores,id',
+            'amount'   => 'required|numeric|min:0.01',
+            'currency' => 'required|in:KHR,USD'
+        ]);
+
+        $store = Store::findOrFail($request->store_id);
+        $currency = $request->input('currency', 'USD');
+        
+        // Find a payment account for the store owner. For simplicity, we just grab the first one.
+        $paymentAccount = PaymentAccount::where('user_id', $store->user_id)->first();
+
+        if (!$paymentAccount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Store owner has no registered Payment Account.'
+            ], 422);
+        }
+
+        // Override currency with the account's configured currency if available
+        if (!empty($paymentAccount->currency)) {
+            $currency = $paymentAccount->currency;
+        }
+
+        // For demo purposes, we're using amount. 
+        // If amount is in USD and we need KHR, we'd convert it.
+        $displayAmount = ($currency === 'USD') ? round($request->amount, 2) : round($request->amount * 4100, 0);
+        $khqrCurrency = ($currency === 'USD') ? KHQRData::CURRENCY_USD : KHQRData::CURRENCY_KHR;
+
+        try {
+            $khqrString = $this->generateKhqrString(
+                $paymentAccount->account_id,
+                $paymentAccount->account_name,
+                $paymentAccount->account_city ?? 'Phnom Penh',
+                $displayAmount,
+                $currency,
+                'PAYOUT-' . time()
+            );
+
+            $qrImage = null;
+            try {
+                $relayUrl = env('API_GENERATE_QR_BAKONG', 'https://api.bakongrelay.com/v1/generate_khqr_image');
+                $templateUrl = env('QR_TEMPLATE_URL', 'https://raw.githubusercontent.com/bsthen/bakong-khqr/main/bakong_khqr/template.png');
+
+                $relayResponse = \Illuminate\Support\Facades\Http::timeout(10)->post($relayUrl, [
+                    'qr' => $khqrString,
+                    'source' => $templateUrl
+                ]);
+
+                if ($relayResponse->successful()) {
+                    $rawBody = $relayResponse->body();
+                    $isJson = false;
+
+                    if (str_starts_with(trim($rawBody), '{')) {
+                        $json = json_decode($rawBody, true);
+                        if (json_last_error() === JSON_ERROR_NONE) {
+                            $isJson = true;
+                            $imageData = $json['data'] ?? $json['qr_image'] ?? $json['image'] ?? null;
+                            if (is_array($imageData)) {
+                                $imageData = $imageData['image'] ?? $imageData['base64'] ?? $imageData['url'] ?? $imageData['data'] ?? null;
+                            }
+                            if (is_string($imageData) && !str_starts_with(trim($imageData), '{')) {
+                                $qrImage = str_starts_with($imageData, 'data:image') ? $imageData : 'data:image/png;base64,' . $imageData;
+                            }
+                        }
+                    }
+
+                    if (!$isJson && !$qrImage) {
+                        $qrImage = 'data:image/png;base64,' . base64_encode($rawBody);
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::error('[KHQR] Relay API failed for payout: ' . $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'qr_string'       => $khqrString,
+                    'qr_image'        => $qrImage,
+                    'amount'          => $displayAmount,
+                    'currency'        => $currency,
+                    'account_name'    => $paymentAccount->account_name,
+                    'account_id'      => $paymentAccount->account_id,
+                    'md5'             => md5($khqrString)
                 ]
             ]);
 

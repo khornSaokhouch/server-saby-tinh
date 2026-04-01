@@ -1,10 +1,12 @@
 <?php
 use App\Http\Controllers\{AuthController, UserController, CategoryController, TypeController,
      BrandController, StoreController, OrderStatusController, ShippingMethodController, 
-     ColorController, SizeController, PaymentAccountController, EventController, PromotionController, PromoCodeController,
-     SellerController, GoogleAuthController, OtpController, CompanyInfoController, CountryController, UserAddressController, 
-     ProductController, StockController, ShoppingCartController, ShopOrderController, UserReviewController, PaymentStatusController, 
-     UserPaymentController, TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController};
+     ColorController, SizeController, PaymentAccountController, EventController, PromotionController, 
+     PromoCodeController, SellerController, GoogleAuthController, OtpController, CompanyInfoController, 
+     CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, 
+     ShopOrderController, UserReviewController, PaymentStatusController, UserPaymentController, 
+     TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, 
+     AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController};
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -180,8 +182,13 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/reports/stats', [ReportByStoreController::class, 'stats']);
         Route::get('/reports/recent-orders', [ReportByStoreController::class, 'recentOrders']);
         Route::get('/reports/top-products', [ReportByStoreController::class, 'topProducts']);
+        Route::get('/reports/top-customers', [ReportByStoreController::class, 'topCustomers']);
+        Route::get('/reports/analytics', [ReportByStoreController::class, 'analytics']);
+        Route::get('/reports/dashboard', [ReportByStoreController::class, 'dashboard']);
 
         // Payouts
+        Route::post('/admin/payouts/generate-qr', [BakongController::class, 'generatePayoutQr']);
+        Route::post('/payouts/bulk', [PayoutController::class, 'bulkStore']);
         Route::apiResource('payouts', PayoutController::class);
     });
 
