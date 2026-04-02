@@ -86,6 +86,9 @@ class BakongController extends Controller
                 Log::error('[KHQR] Relay API failed: ' . $e->getMessage());
             }
 
+            // Generate Deeplink (Short Link)
+            $deeplink = $this->generateDeeplink($khqrString);
+
             // Save the payment record
             UserPayment::updateOrCreate(
                 ['order_id' => $order->id],
@@ -104,6 +107,7 @@ class BakongController extends Controller
                 'data' => [
                     'qr_string'       => $khqrString,
                     'qr_image'        => $qrImage,
+                    'deeplink'        => $deeplink,
                     'md5'             => $md5,
                     'amount'          => $displayAmount,
                     'currency'        => $currency,
@@ -201,11 +205,15 @@ class BakongController extends Controller
                 Log::error('[KHQR] Relay API failed for payout: ' . $e->getMessage());
             }
 
+            // Generate Deeplink
+            $deeplink = $this->generateDeeplink($khqrString);
+
             return response()->json([
                 'success' => true,
                 'data' => [
                     'qr_string'       => $khqrString,
                     'qr_image'        => $qrImage,
+                    'deeplink'        => $deeplink,
                     'amount'          => $displayAmount,
                     'currency'        => $currency,
                     'account_name'    => $paymentAccount->account_name,
@@ -271,6 +279,36 @@ class BakongController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Generate Deeplink via Bakong Relay API
+     */
+    private function generateDeeplink($qrString)
+    {
+        try {
+            $apiUrl = env('API_GENERATE_DEEPLINK_BAKONG', 'https://api.bakongrelay.com/v1/generate_deeplink_by_qr');
+            
+            $sourceInfo = [
+                'appIconUrl' => env('APP_ICON_URL', 'https://bakong.nbc.gov.kh/images/logo.svg'),
+                'appName' => env('APP_NAME', 'Bakong'),
+                'appDeepLinkCallback' => env('APP_DEEPLINK_CALLBACK', env('APP_URL', 'https://bakong.nbc.gov.kh/'))
+            ];
+
+            $response = \Illuminate\Support\Facades\Http::timeout(5)->post($apiUrl, [
+                'qr' => $qrString,
+                'sourceInfo' => $sourceInfo
+            ]);
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['data']['shortLink'] ?? null;
+            }
+        } catch (\Exception $e) {
+            Log::error('[KHQR] Deeplink generation error: ' . $e->getMessage());
+        }
+
+        return null;
     }
 
     /**
