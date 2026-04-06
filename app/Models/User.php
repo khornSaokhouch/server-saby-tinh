@@ -35,7 +35,7 @@ class User extends Authenticatable implements JWTSubject
      *
      * @var array
      */
-    protected $appends = ['profile_image_url'];
+    protected $appends = ['profile_image_url', 'accessible_store'];
 
 
     /**
@@ -78,10 +78,47 @@ class User extends Authenticatable implements JWTSubject
         return $this->hasOne(UserProfile::class);
     }
 
-     // store 
+     // Store where user is the primary owner
+    public function ownedStore()
+    {
+        return $this->hasOne(Store::class, 'user_id');
+    }
+
+    // Alias for backward compatibility with existing code
     public function store()
     {
-        return $this->hasOne(Store::class);
+        return $this->ownedStore();
+    }
+
+    // Stores where user is a team member
+    public function memberStores()
+    {
+        return $this->belongsToMany(Store::class, 'customer_list', 'user_id', 'store_id');
+    }
+
+    /**
+     * Get the store the user belongs to (either as owner or member).
+     * Named 'accessible_store' to avoid conflict with the store() relation method.
+     * Frontend should read user.accessible_store
+     */
+    public function getAccessibleStoreAttribute()
+    {
+        // If ownedStore relation is loaded, use it
+        if ($this->relationLoaded('ownedStore') && $this->ownedStore) {
+            return $this->ownedStore;
+        }
+
+        // Try to fetch the owned store
+        $owned = $this->ownedStore;
+        if ($owned) return $owned;
+
+        // If memberStores relation is loaded, use it
+        if ($this->relationLoaded('memberStores') && $this->memberStores->isNotEmpty()) {
+            return $this->memberStores->first();
+        }
+
+        // Fallback: query the customer_list directly for performance
+        return $this->memberStores()->first();
     }
 
     public function companyInfo()

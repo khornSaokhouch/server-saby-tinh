@@ -32,4 +32,9 @@ class Invoice extends Model
     {
         return $this->belongsTo(PaymentStatus::class, 'payment_status_id');
     }
+
+    public function payout()
+    {
+        return $this->hasOne(Payout::class);
+    }
 }

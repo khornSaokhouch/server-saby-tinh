@@ -28,8 +28,13 @@ class StoreController extends Controller
             $user = Auth::user();
             $query = Store::with(['user.companyInfo.address']);
 
-            if ($user && $user->role === 'owner') {
-                $query->where('user_id', $user->id);
+            if ($user && $user->role !== 'admin') {
+                $storeId = $user->accessible_store ? $user->accessible_store->id : null;
+                if ($storeId) {
+                    $query->where('id', $storeId);
+                } else {
+                    $query->where('user_id', clone $user->id); // will return nothing for team members without a store
+                }
             }
 
             $stores = $query->latest()->get();

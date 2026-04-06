@@ -41,6 +41,11 @@ class InvoiceController extends Controller
                 });
             }
 
+            // Exclude invoices with payouts
+            if ($request->boolean('exclude_payouts')) {
+                $query->whereDoesntHave('payout');
+            }
+
             // Search filter
             if ($request->filled('search')) {
                 $search = $request->search;

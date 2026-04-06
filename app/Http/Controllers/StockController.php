@@ -24,11 +24,14 @@ class StockController extends Controller
                 'productItem.variants.size'
             ]);
 
-            // Filter by owner
-            if ($user->role === 'owner') {
-                $query->whereHas('store', function ($q) use ($user) {
-                    $q->where('user_id', $user->id);
-                });
+            // Filter to accessible store only
+            if ($user->role !== 'admin') {
+                $storeId = $user->accessible_store ? $user->accessible_store->id : null;
+                if ($storeId) {
+                    $query->where('store_id', $storeId);
+                } else {
+                    $query->whereNull('id'); // Return nothing if they have no store
+                }
             }
 
             $stocks = $query->latest()->get();

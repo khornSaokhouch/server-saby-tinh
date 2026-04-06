@@ -190,6 +190,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/admin/payouts/generate-qr', [BakongController::class, 'generatePayoutQr']);
         Route::post('/payouts/bulk', [PayoutController::class, 'bulkStore']);
         Route::apiResource('payouts', PayoutController::class);
+
+        // Team Management
+        Route::get('/owner/team', [UserController::class, 'getTeamMembers']);
+        Route::post('/owner/team/add', [UserController::class, 'addMember']);
+        Route::post('/owner/team/update/{id}', [UserController::class, 'updateMember']);
+        Route::post('/owner/team/batch-delete', [UserController::class, 'batchDeleteMembers']);
     });
 
     // Sellers
@@ -209,6 +215,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/users/{id}', [UserController::class, 'show']);
         Route::patch('/users/{id}/role', [UserController::class, 'updateRole']); // Update User Role
         Route::delete('/users/{id}', [UserController::class, 'destroy']);
+        Route::get('/admin/stores/{id}/members', [UserController::class, 'getStoreMembers']);
 
 
 
@@ -222,6 +229,8 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/events/{id}', [EventController::class, 'destroy']);
 
         Route::get('/admin/dashboard', [DashboardController::class, 'index']);
+        Route::get('/admin/reports', [DashboardController::class, 'reports']);
+        Route::get('/admin/analytics', [DashboardController::class, 'analytics']);
          Route::get('/admin/promo-code-usages', [PromoCodeUsageController::class, 'index']);
         Route::get('/admin/promo-code-usages/stats', [PromoCodeUsageController::class, 'stats']);
 
@@ -266,6 +275,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/orders', [ShopOrderController::class, 'store']);
     Route::get('/orders/{id}', [ShopOrderController::class, 'show']);
     Route::post('/orders/{id}/confirm', [ShopOrderController::class, 'confirm']);
+    Route::delete('/orders/{id}', [ShopOrderController::class, 'destroy']);
+    Route::post('/orders/batch-delete', [ShopOrderController::class, 'batchDelete']);
 
     // User Payments
     Route::get('/user-payments', [UserPaymentController::class, 'index']);

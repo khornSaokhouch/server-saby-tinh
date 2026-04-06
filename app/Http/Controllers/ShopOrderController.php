@@ -23,18 +23,21 @@ class ShopOrderController extends Controller
 
         $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentStatus', 'invoice']);
 
-        if ($user->role === User::ROLE_OWNER) {
-            $user->load('store');
-            if ($user->store) {
-                $storeId = $user->store->id;
+        if ($user->role === User::ROLE_ADMIN) {
+            // Admin sees all
+        } else {
+            // If the user has a store (as an owner or team member), scope to that store's orders
+            $store = $user->accessible_store;
+            
+            if ($store) {
+                $storeId = $store->id;
                 $query->whereHas('orderLines.productItemVariant.productItem.product', function($q) use ($storeId) {
                     $q->where('store_id', $storeId);
                 });
             } else {
+                // Otherwise, normal customer viewing their personal order history
                 $query->where('user_id', $user->id); 
             }
-        } elseif ($user->role !== User::ROLE_ADMIN) {
-            $query->where('user_id', $user->id);
         }
 
         $orders = $query->orderBy('created_at', 'desc')->get();
@@ -226,5 +229,56 @@ class ShopOrderController extends Controller
             'message' => 'Order confirmed successfully',
             'data' => $order->load('orderStatus')
         ]);
+    }
+
+    public function destroy($id)
+    {
+        $order = ShopOrder::find($id);
+
+        if (!$order) {
+            return response()->json(['success' => false, 'message' => 'Order not found'], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Delete related records
+            $order->orderLines()->delete();
+            $order->orderHistory()->delete();
+            $order->invoice()->delete();
+            $order->delete();
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => 'Order deleted successfully']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Failed to delete order', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function batchDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:shop_orders,id',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($request->ids as $id) {
+                $order = ShopOrder::find($id);
+                if ($order) {
+                    $order->orderLines()->delete();
+                    $order->orderHistory()->delete();
+                    $order->invoice()->delete();
+                    $order->delete();
+                }
+            }
+
+            DB::commit();
+            return response()->json(['success' => true, 'message' => count($request->ids) . ' orders deleted successfully']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['success' => false, 'message' => 'Failed to delete orders', 'error' => $e->getMessage()], 500);
+        }
     }
 }

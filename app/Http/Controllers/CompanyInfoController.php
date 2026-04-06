@@ -35,7 +35,8 @@ class CompanyInfoController extends Controller
             if ($user->role === 'admin') {
                 $companies = CompanyInfo::with(['user', 'address.country'])->latest()->get();
             } else {
-                $companies = CompanyInfo::where('user_id', $user->id)->with(['address.country'])->latest()->get();
+                $ownerId = $user->accessible_store ? $user->accessible_store->user_id : clone $user->id;
+                $companies = CompanyInfo::where('user_id', $ownerId)->with(['address.country'])->latest()->get();
             }
 
             return $this->successResponse($companies, 'Company info retrieved successfully');
@@ -156,7 +157,8 @@ class CompanyInfoController extends Controller
             }
 
             $user = Auth::user();
-            if ($user->role !== 'admin' && $company->user_id !== $user->id) {
+            $ownerId = $user->accessible_store ? $user->accessible_store->user_id : clone $user->id;
+            if ($user->role !== 'admin' && $company->user_id !== $ownerId) {
                 return $this->errorResponse('Unauthorized to update this company info', 403);
             }
 

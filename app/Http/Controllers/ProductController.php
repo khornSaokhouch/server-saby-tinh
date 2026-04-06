@@ -52,6 +52,9 @@ class ProductController extends Controller
                 $query->whereHas('store', function ($q) use ($user) {
                     $q->where('user_id', $user->id);
                 });
+            } elseif ($user && $user->role !== 'admin' && $request->query('context') === 'dashboard' && $user->accessible_store) {
+                // Team member navigating their dashboard
+                $query->where('store_id', $user->accessible_store->id);
             }
 
             // Filter by store
@@ -310,6 +313,16 @@ class ProductController extends Controller
             return response()->json(['success' => false, 'message' => 'Product not found'], 404);
         }
 
+        $user = auth()->user();
+        if ($user->role !== 'admin') {
+            $isOwner = $user->role === 'owner' && $product->store->user_id === $user->id;
+            $isTeamMember = $user->accessible_store && $user->accessible_store->id === $product->store_id;
+            
+            if (!$isOwner && !$isTeamMember) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized to modify this product'], 403);
+            }
+        }
+
         $request->validate([
             'name'        => 'sometimes|string|max:255',
             'price'       => 'nullable|numeric',
@@ -403,6 +416,16 @@ class ProductController extends Controller
                 return response()->json(['success' => false, 'message' => 'Product not found'], 404);
             }
 
+            $user = auth()->user();
+            if ($user->role !== 'admin') {
+                $isOwner = $user->role === 'owner' && $product->store->user_id === $user->id;
+                $isTeamMember = $user->accessible_store && $user->accessible_store->id === $product->store_id;
+                
+                if (!$isOwner && !$isTeamMember) {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized to delete this product'], 403);
+                }
+            }
+
             // Delete images from ImageKit
             $images = ProductImage::where('product_id', $id)->get();
             foreach ($images as $img) {
@@ -425,8 +448,20 @@ class ProductController extends Controller
         ]);
 
         try {
+            $user = auth()->user();
             $ids = $request->input('ids');
-            $products = Product::whereIn('id', $ids)->get();
+            
+            $query = Product::whereIn('id', $ids);
+            
+            if ($user->role !== 'admin') {
+                $storeId = $user->role === 'owner' && $user->store ? $user->store->id : ($user->accessible_store ? $user->accessible_store->id : null);
+                if (!$storeId) {
+                    return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+                }
+                $query->where('store_id', $storeId);
+            }
+            
+            $products = $query->get();
 
             foreach ($products as $product) {
                 $images = ProductImage::where('product_id', $product->id)->get();
@@ -438,7 +473,7 @@ class ProductController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => count($ids) . ' products deleted successfully',
+                'message' => count($products) . ' products deleted successfully',
             ], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);

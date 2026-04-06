@@ -14,6 +14,30 @@ use App\Models\Payout;
 class ReportByStoreController extends Controller
 {
     /**
+     * Check whether the authenticated user can access data for the given store.
+     * Grants access if the user:
+     *   1. Owns the store (store.user_id = auth user)
+     *   2. Is a team member linked via customer_list
+     */
+    private function authorizeStoreAccess(int $storeId): bool
+    {
+        $user = auth()->user();
+        if (!$user) return false;
+
+        // Admin can see everything
+        if ($user->role === 'admin') return true;
+
+        // Owner check
+        if ($user->ownedStore && $user->ownedStore->id === $storeId) return true;
+
+        // Team member check
+        return \Illuminate\Support\Facades\DB::table('customer_list')
+            ->where('user_id', $user->id)
+            ->where('store_id', $storeId)
+            ->exists();
+    }
+
+    /**
      * Get aggregate stats for a store in a given date range.
      */
     public function stats(Request $request): JsonResponse
@@ -25,6 +49,10 @@ class ReportByStoreController extends Controller
 
         $storeId = $request->input('store_id');
         $days = $request->input('range', 7);
+
+        if (!$this->authorizeStoreAccess($storeId)) {
+            return response()->json(['success' => false, 'message' => 'Access denied to this store.'], 403);
+        }
 
         $now = Carbon::now();
         $startDate = $now->copy()->subDays($days);
@@ -81,6 +109,10 @@ class ReportByStoreController extends Controller
         $storeId = $request->input('store_id');
         $limit = $request->input('limit', 5);
 
+        if (!$this->authorizeStoreAccess($storeId)) {
+            return response()->json(['success' => false, 'message' => 'Access denied to this store.'], 403);
+        }
+
         $orders = ShopOrder::select(
                 'shop_orders.id',
                 'users.name as customer',
@@ -127,6 +159,10 @@ class ReportByStoreController extends Controller
 
         $storeId = $request->input('store_id');
         $limit = $request->input('limit', 4);
+
+        if (!$this->authorizeStoreAccess($storeId)) {
+            return response()->json(['success' => false, 'message' => 'Access denied to this store.'], 403);
+        }
 
         $topProducts = DB::table('order_lines')
             ->join('shop_orders', 'order_lines.order_id', '=', 'shop_orders.id')
@@ -176,6 +212,10 @@ class ReportByStoreController extends Controller
         $storeId = $request->input('store_id');
         $limit = $request->input('limit', 5);
 
+        if (!$this->authorizeStoreAccess($storeId)) {
+            return response()->json(['success' => false, 'message' => 'Access denied to this store.'], 403);
+        }
+
         $topCustomers = DB::table('shop_orders')
             ->join('users', 'shop_orders.user_id', '=', 'users.id')
             ->leftJoin('user_profiles', 'users.id', '=', 'user_profiles.user_id')
@@ -216,6 +256,10 @@ class ReportByStoreController extends Controller
         $storeId = $request->input('store_id');
         $range = $request->input('range', 'thisYear');
         $year = date('Y');
+
+        if (!$this->authorizeStoreAccess($storeId)) {
+            return response()->json(['success' => false, 'message' => 'Access denied to this store.'], 403);
+        }
 
         // --- 1. ALWAYS GET MONTHLY BUCKETS FOR THE CHART (CURRENT YEAR) ---
         $monthlyData = OrderLine::join('shop_orders', 'order_lines.order_id', '=', 'shop_orders.id')
@@ -350,6 +394,10 @@ class ReportByStoreController extends Controller
     {
         $request->validate(['store_id' => 'required|exists:stores,id']);
         $storeId = $request->input('store_id');
+
+        if (!$this->authorizeStoreAccess($storeId)) {
+            return response()->json(['success' => false, 'message' => 'Access denied to this store.'], 403);
+        }
 
         $today = now()->startOfDay();
         $yesterday = now()->subDay()->startOfDay();

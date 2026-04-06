@@ -13,11 +13,18 @@ class UserAddressController extends Controller
     /**
      * Display a listing of the authenticated user's addresses.
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
         try {
             $user = auth()->user();
-            $addresses = Address::where('user_id', $user->id)->with('country')->latest()->get();
+            
+            // Provide owner addresses if requested from the dashboard by a team member
+            if ($request->query('context') === 'dashboard' && $user->role !== 'admin' && $user->accessible_store) {
+                $ownerId = $user->accessible_store->user_id;
+                $addresses = Address::where('user_id', $ownerId)->with('country')->latest()->get();
+            } else {
+                $addresses = Address::where('user_id', $user->id)->with('country')->latest()->get();
+            }
 
             return response()->json([
                 'success' => true,

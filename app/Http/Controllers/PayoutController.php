@@ -17,11 +17,12 @@ class PayoutController extends Controller
     {
         $query = Payout::with(['invoice', 'store', 'status']);
 
-        // Security override: Owners can only see their own store's payouts
-        if (auth()->check() && auth()->user()->role === 'owner') {
-            $ownerStore = \App\Models\Store::where('user_id', auth()->id())->first();
-            if ($ownerStore) {
-                $query->where('store_id', $ownerStore->id);
+        // Security override: Non-admins can only see their own store's payouts
+        $user = auth()->user();
+        if ($user && $user->role !== 'admin') {
+            $store = $user->accessible_store;
+            if ($store) {
+                $query->where('store_id', $store->id);
             } else {
                 return response()->json(['success' => true, 'data' => []]);
             }

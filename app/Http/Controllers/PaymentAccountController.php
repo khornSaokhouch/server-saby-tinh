@@ -23,9 +23,10 @@ class PaymentAccountController extends Controller
             // Context-aware defaults for dashboard/management
             if ($user->role === \App\Models\User::ROLE_ADMIN) {
                 // Admin sees all in management view
-            } elseif ($user->role === \App\Models\User::ROLE_OWNER) {
-                // Owners see only their own in management view
-                $query->where('user_id', $user->id);
+            } elseif ($user->role === \App\Models\User::ROLE_OWNER || $user->accessible_store) {
+                // Owners and team members see only their store's accounts
+                $ownerId = $user->accessible_store ? $user->accessible_store->user_id : clone $user->id;
+                $query->where('user_id', $ownerId);
             } else {
                 // Default to admin accounts for anyone else (customers)
                 $query->whereHas('user', function($q) {
