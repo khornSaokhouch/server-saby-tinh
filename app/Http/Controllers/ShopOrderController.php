@@ -21,7 +21,7 @@ class ShopOrderController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
         }
 
-        $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentStatus', 'invoice']);
+        $query = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentStatus', 'invoice.payout']);
 
         if ($user->role === User::ROLE_ADMIN) {
             // Admin sees all
@@ -140,6 +140,12 @@ class ShopOrderController extends Controller
 
             DB::commit();
 
+            // Clear shopping cart after successful order WITHOUT restoring stock
+            $userCart = \App\Models\ShoppingCart::where('user_id', $userId)->first();
+            if ($userCart) {
+                \App\Models\ShoppingCartItem::where('cart_id', $userCart->id)->delete();
+            }
+
             // --- Telegram Notification Logic ---
             try {
                 $order->load(['orderLines.productItemVariant.productItem.product.store.user.socialAccounts']);
@@ -192,7 +198,7 @@ class ShopOrderController extends Controller
 
     public function show($id)
     {
-        $order = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderLines.review', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentMethod', 'orderHistory', 'paymentStatus', 'userPayments', 'invoice'])
+        $order = ShopOrder::with(['user', 'orderLines.productItemVariant.productItem.product.images', 'orderLines.review', 'orderStatus', 'shippingMethod', 'shippingAddress', 'paymentMethod', 'orderHistory', 'paymentStatus', 'userPayments', 'invoice.payout'])
             ->find($id);
 
         if (!$order) {

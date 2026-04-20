@@ -30,7 +30,7 @@ class ShoppingCartController extends Controller
     }
 
     /**
-     * Add an item to the shopping cart.
+     * Add an item to the shopping cart and reduce stock.
      */
     public function addItem(Request $request): JsonResponse
     {
@@ -38,6 +38,15 @@ class ShoppingCartController extends Controller
             'product_item_variant_id' => 'required|exists:product_item_variants,id',
             'quantity' => 'required|integer|min:1'
         ]);
+
+        $variant = \App\Models\ProductItemVariant::with('productItem')->find($request->product_item_variant_id);
+        
+        if (!$variant || $variant->quantity_in_stock < $request->quantity || $variant->productItem->quantity_in_stock < $request->quantity) {
+            return response()->json([
+                'success' => false, 
+                'message' => 'Insufficient stock available'
+            ], 422);
+        }
 
         $user = Auth::user();
         $cart = ShoppingCart::firstOrCreate(['user_id' => $user->id]);
@@ -55,6 +64,10 @@ class ShoppingCartController extends Controller
                 'quantity' => $request->quantity
             ]);
         }
+
+        // Reduce stock for both variant and parent item
+        $variant->decrement('quantity_in_stock', $request->quantity);
+        $variant->productItem->decrement('quantity_in_stock', $request->quantity);
 
         return response()->json([
             'success' => true,
@@ -78,7 +91,7 @@ class ShoppingCartController extends Controller
         ]);
 
         $user = Auth::user();
-        $cartItem = ShoppingCartItem::whereHas('cart', function ($query) use ($user) {
+        $cartItem = ShoppingCartItem::with('variant.productItem')->whereHas('cart', function ($query) use ($user) {
             $query->where('user_id', $user->id);
         })->find($id);
 
@@ -86,7 +99,25 @@ class ShoppingCartController extends Controller
             return response()->json(['success' => false, 'message' => 'Cart item not found'], 404);
         }
 
-        $cartItem->update(['quantity' => $request->quantity]);
+        $oldQuantity = $cartItem->quantity;
+        $newQuantity = $request->quantity;
+        $diff = $newQuantity - $oldQuantity;
+
+        if ($diff > 0) {
+            // Check if more stock is available
+            if ($cartItem->variant->quantity_in_stock < $diff || $cartItem->variant->productItem->quantity_in_stock < $diff) {
+                return response()->json(['success' => false, 'message' => 'Insufficient stock available'], 422);
+            }
+            $cartItem->variant->decrement('quantity_in_stock', $diff);
+            $cartItem->variant->productItem->decrement('quantity_in_stock', $diff);
+        } elseif ($diff < 0) {
+            // Restore stock
+            $restoredAmount = abs($diff);
+            $cartItem->variant->increment('quantity_in_stock', $restoredAmount);
+            $cartItem->variant->productItem->increment('quantity_in_stock', $restoredAmount);
+        }
+
+        $cartItem->update(['quantity' => $newQuantity]);
 
         return response()->json([
             'success' => true,
@@ -101,13 +132,17 @@ class ShoppingCartController extends Controller
     public function removeItem(int $id): JsonResponse
     {
         $user = Auth::user();
-        $cartItem = ShoppingCartItem::whereHas('cart', function ($query) use ($user) {
+        $cartItem = ShoppingCartItem::with('variant.productItem')->whereHas('cart', function ($query) use ($user) {
             $query->where('user_id', $user->id);
         })->find($id);
 
         if (!$cartItem) {
             return response()->json(['success' => false, 'message' => 'Cart item not found'], 404);
         }
+
+        // Restore stock for both variant and parent item
+        $cartItem->variant->increment('quantity_in_stock', $cartItem->quantity);
+        $cartItem->variant->productItem->increment('quantity_in_stock', $cartItem->quantity);
 
         $cartItem->delete();
 
@@ -126,7 +161,12 @@ class ShoppingCartController extends Controller
         $cart = ShoppingCart::where('user_id', $user->id)->first();
 
         if ($cart) {
-            ShoppingCartItem::where('cart_id', $cart->id)->delete();
+            $items = ShoppingCartItem::with('variant.productItem')->where('cart_id', $cart->id)->get();
+            foreach ($items as $item) {
+                $item->variant->increment('quantity_in_stock', $item->quantity);
+                $item->variant->productItem->increment('quantity_in_stock', $item->quantity);
+                $item->delete();
+            }
         }
 
         return response()->json([

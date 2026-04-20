@@ -3,9 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Mail\PayoutNotificationMail;
 use App\Models\Payout;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 
 class PayoutController extends Controller
@@ -60,11 +63,22 @@ class PayoutController extends Controller
         }
 
         $payout = Payout::create($request->all());
+        $payout->load(['invoice', 'store.user', 'status']);
+
+        // Send ONE email with a single-item collection
+        try {
+            $storeOwnerEmail = $payout->store?->user?->email;
+            if ($storeOwnerEmail) {
+                Mail::to($storeOwnerEmail)->send(new PayoutNotificationMail(collect([$payout])));
+            }
+        } catch (\Exception $e) {
+            Log::error('Payout email failed: ' . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'Payout record created successfully',
-            'data' => $payout->load(['invoice', 'store', 'status'])
+            'data'    => $payout
         ], 201);
     }
 
@@ -134,12 +148,13 @@ class PayoutController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $created = [];
-        $failed  = [];
-        $now     = now();
-        $batchRef = 'BULK-' . $now->timestamp;
+        $created     = [];
+        $failed      = [];
+        $createdModels = [];
+        $now         = now();
+        $batchRef    = 'BULK-' . $now->timestamp;
 
-        DB::transaction(function () use ($request, $now, $batchRef, &$created, &$failed) {
+        DB::transaction(function () use ($request, $now, $batchRef, &$created, &$failed, &$createdModels) {
             foreach ($request->payouts as $item) {
                 try {
                     $payout = Payout::create([
@@ -151,12 +166,27 @@ class PayoutController extends Controller
                         'paid_at'               => $now,
                         'transaction_reference' => $batchRef . '-' . $item['invoice_id'],
                     ]);
-                    $created[] = $payout->id;
+                    $payout->load(['invoice', 'store.user', 'status']);
+                    $created[]       = $payout->id;
+                    $createdModels[] = $payout;
                 } catch (\Exception $e) {
                     $failed[] = $item['invoice_id'];
                 }
             }
         });
+
+        // Send ONE summary email for ALL payouts in this batch
+        try {
+            $payoutCollection = collect($createdModels);
+            if ($payoutCollection->isNotEmpty()) {
+                $storeOwnerEmail = $payoutCollection->first()?->store?->user?->email;
+                if ($storeOwnerEmail) {
+                    Mail::to($storeOwnerEmail)->send(new PayoutNotificationMail($payoutCollection));
+                }
+            }
+        } catch (\Exception $mailEx) {
+            Log::error('Bulk payout summary email failed: ' . $mailEx->getMessage());
+        }
 
         return response()->json([
             'success'       => true,
