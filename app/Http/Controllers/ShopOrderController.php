@@ -101,6 +101,11 @@ class ShopOrderController extends Controller
             $shippingFee = $request->shipping_fee ?? 0;
             $orderTotal = max(0, $calculatedSubtotal + $shippingFee - $discountAmount);
 
+            // Calculate Platform Fee (Admin Commission)
+            $platformFeeConfig = \App\Models\PlatformFee::first();
+            $commissionPercentage = $platformFeeConfig ? $platformFeeConfig->commission_percentage : 10;
+            $platformFee = ($calculatedSubtotal * $commissionPercentage) / 100;
+
             $order = ShopOrder::create([
                 'user_id' => $userId,
                 'order_date' => now(),
@@ -110,6 +115,7 @@ class ShopOrderController extends Controller
                 'subtotal' => $calculatedSubtotal,
                 'discount_amount' => $discountAmount,
                 'shipping_fee' => $shippingFee,
+                'platform_fee' => $platformFee,
                 'order_total' => $orderTotal,
                 'promo_code_id' => $promoId,
                 'order_status_id' => 1,

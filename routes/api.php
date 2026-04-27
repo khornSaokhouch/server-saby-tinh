@@ -6,7 +6,7 @@ use App\Http\Controllers\{AuthController, UserController, CategoryController, Ty
      CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, 
      ShopOrderController, UserReviewController, PaymentStatusController, UserPaymentController, 
      TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, 
-     AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController};
+     AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController, PlatformFeeController};
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -240,6 +240,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/admin/invoices/store-stats', [InvoiceController::class, 'storeStats']);
         Route::get('/admin/invoices/{id}', [InvoiceController::class, 'show']);
         Route::post('/admin/invoices/{id}/status', [InvoiceController::class, 'updateStatus']);
+
+        // Platform Fee
+        Route::get('/admin/platform-fee', [PlatformFeeController::class, 'index']);
+        Route::post('/admin/platform-fee', [PlatformFeeController::class, 'update']);
     });
 
 

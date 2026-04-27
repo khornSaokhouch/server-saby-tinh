@@ -30,6 +30,7 @@ class ShopOrder extends Model
         'subtotal',
         'discount_amount',
         'shipping_fee',
+        'platform_fee',
         'promo_code_id',
         'order_status_id',
         'payment_status_id',
