@@ -6,7 +6,7 @@ use App\Http\Controllers\{AuthController, UserController, CategoryController, Ty
      CountryController, UserAddressController, ProductController, StockController, ShoppingCartController, 
      ShopOrderController, UserReviewController, PaymentStatusController, UserPaymentController, 
      TelegramController, DashboardController, PromoCodeUsageController, InvoiceController, SearchController, 
-     AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController, PlatformFeeController};
+     AbaPaywayController, AbaWebhookController, ReportByStoreController, BakongController, PayoutController, PlatformFeeController, ChatController};
 use Illuminate\Support\Facades\Route;
 
 // Public
@@ -303,4 +303,13 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/user-addresses', [UserAddressController::class, 'store']);
     Route::patch('/user-addresses/{id}', [UserAddressController::class, 'update']);
     Route::delete('/user-addresses/{id}', [UserAddressController::class, 'destroy']);
+
+    // Chat Routes
+    Route::prefix('chat')->group(function () {
+        Route::get('/conversations', [ChatController::class, 'getConversations']);
+        Route::get('/{receiverId}', [ChatController::class, 'index']);
+        Route::post('/', [ChatController::class, 'store']);
+        Route::post('/read-all/{senderId}', [ChatController::class, 'markConversationAsRead']);
+        Route::patch('/{messageId}/read', [ChatController::class, 'markAsRead']);
+    });
 });

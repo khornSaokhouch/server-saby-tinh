@@ -288,11 +288,13 @@ class ProductController extends Controller
                 ? (clone $productQuery)->find($idOrSlug)
                 : null;
             
-            // If not found by ID or if not numeric, try by name (slugified comparison)
+            // If not found by ID, try case-insensitive slug lookup
             if (!$product) {
-                // Search for name matching the slug (replace hyphens with spaces)
+                // Convert hyphens to wildcards: 'face-cream-fogm' -> '%face%cream%fogm%'
+                // This matches 'Face Cream - fogm', 'Face-Cream-Fogm', etc.
+                $namePattern = '%' . str_replace('-', '%', $idOrSlug) . '%';
                 $product = (clone $productQuery)
-                    ->where('name', 'like', str_replace('-', ' ', $idOrSlug))
+                    ->whereRaw('LOWER(name) LIKE ?', [strtolower($namePattern)])
                     ->first();
             }
 
